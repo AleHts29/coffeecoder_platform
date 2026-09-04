@@ -1,0 +1,57 @@
+/* CoffeeCoder · design tokens (paleta Grafito, aprobada)
+   Tailwind v4: este archivo se importa en el CSS raíz y @theme
+   expone cada token como utilidades (bg-surface-0, text-accent, etc.) */
+
+@theme {
+  /* Superficies */
+  --color-surface-0: #141414;   /* fondo de página */
+  --color-surface-1: #1B1B1D;   /* cards, sidebar */
+  --color-surface-2: #242426;   /* hover, item activo */
+
+  /* Bordes */
+  --color-border: #2C2C2E;
+  --color-border-strong: #3A3A3C;
+
+  /* Texto */
+  --color-ink: #EDEDEB;         /* primario */
+  --color-ink-soft: #9A9A97;    /* secundario */
+  --color-ink-faint: #7A7A78;   /* terciario / metadatos */
+  --color-ink-disabled: #48484A;
+
+  /* Acento caramelo */
+  --color-accent: #E08E33;
+  --color-accent-hover: #EDA04D;
+  --color-on-accent: #141414;
+
+  /* Destructivo (solo admin; único rojo de la plataforma) */
+  --color-danger: #E2695C;
+  --color-danger-border: #7A3B34;
+  --color-danger-border-hover: #A04A40;
+  --color-danger-surface: #3A211D;
+
+  /* Tipografía */
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Radios */
+  --radius-control: 8px;
+  --radius-card: 12px;
+}
+
+/* Convenciones de uso (del design system aprobado):
+   - Datos (duraciones, porcentajes, numeración, timestamps) → font-mono
+   - UI y prosa → font-sans, pesos 400/500 únicamente
+   - El acento significa: acción primaria, progreso, estado activo.
+     Un solo acento por vista compitiendo por atención.
+
+   Jerarquía de botones (4 niveles, aprobada):
+   1. Primario:    bg accent, texto on-accent, hover accent-hover.
+                   MÁXIMO UNO POR VISTA. Comprar, continuar, guardar.
+   2. Secundario:  bg surface-2, borde border-strong, texto ink;
+                   hover aclara fondo y borde. Acciones de soporte.
+   3. Ghost:       transparente, texto ink-soft; hover bg surface-2
+                   y texto ink. Cancelar, navegación, terciarias.
+   4. Destructivo: transparente, borde danger-border, texto danger;
+                   hover bg danger-surface. SOLO ADMIN; relleno solo
+                   en la confirmación final del diálogo.
+   Disabled (todos): bg surface-1, borde border, texto ink-disabled. */

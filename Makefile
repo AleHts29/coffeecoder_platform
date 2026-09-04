@@ -1,0 +1,75 @@
+# CoffeeCoder — tareas de desarrollo.
+
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
+
+# --- Toolchain --------------------------------------------------------------
+# GOTOOLCHAIN=auto hace que cualquier Go >= 1.21 del PATH baje y use la version
+# que pide go.mod. Asi el proyecto no depende de que gvm apunte al Go correcto.
+# GOROOT queda fuera del entorno por el mismo motivo.
+export GOTOOLCHAIN := auto
+unexport GOROOT
+
+GO           := go
+BIN          := $(CURDIR)/bin
+SQLC         := $(BIN)/sqlc
+SQLC_VERSION := v1.30.0
+
+# Node: si el del PATH es viejo, se usa uno mas nuevo de nvm/homebrew.
+NODE_BIN := $(shell ./scripts/node-path.sh)
+WEB_PATH := $(if $(NODE_BIN),$(NODE_BIN):$(PATH),$(PATH))
+NPM      := PATH="$(WEB_PATH)" npm --prefix web
+
+# --- Config -----------------------------------------------------------------
+DB_URL ?= postgres://coffee:coffee@localhost:5432/coffeecoder?sslmode=disable
+ENV_FILE := .env
+# Carga .env en el entorno de las recetas que lo necesitan.
+LOAD_ENV := set -a && [ -f $(ENV_FILE) ] && source $(ENV_FILE); set +a
+
+.PHONY: help
+help: ## Lista las tareas
+	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-14s %s\n", $$1, $$2}'
+
+.PHONY: tools
+tools: $(SQLC) ## Instala sqlc en ./bin
+
+$(SQLC):
+	GOBIN=$(BIN) $(GO) install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
+
+.PHONY: db-up
+db-up: ## Levanta Postgres 16 en Docker
+	docker compose up -d db
+
+.PHONY: db-down
+db-down: ## Baja Postgres
+	docker compose down
+
+.PHONY: migrate
+migrate: ## Aplica db/migrations/*.sql en orden
+	@for f in db/migrations/*.sql; do \
+		echo "==> $$f"; \
+		psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f $$f; \
+	done
+
+.PHONY: sqlc
+sqlc: $(SQLC) ## Regenera internal/store desde db/queries
+	$(SQLC) generate
+
+.PHONY: build
+build: ## Compila todo
+	$(GO) build ./...
+
+.PHONY: run
+run: ## Levanta la API (HTTP_ADDR de .env)
+	@$(LOAD_ENV); $(GO) run ./cmd/api
+
+.PHONY: test
+test: ## Tests unitarios
+	@$(LOAD_ENV); $(GO) test ./...
+
+.PHONY: vet
+vet: ## go vet
+	$(GO) vet ./...
+
+.PHONY: dev
+dev: db-up migrate sqlc run ## db-up + migrate + sqlc + run
