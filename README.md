@@ -9,7 +9,8 @@ Plataforma de carreras y cursos. Monolito modular en Go + React PWA.
 ## Stack
 
 - **Backend:** Go 1.25, Chi, PostgreSQL 16, pgx/v5, sqlc v1.30
-- **Frontend:** React + Vite + TypeScript, Tailwind v4, TanStack Query
+- **Frontend:** React 18 + Vite + TypeScript, Tailwind v4, TanStack Query.
+  Router: **TanStack Router, code-based** (rutas tipadas en `web/src/router.tsx`, sin plugin de generación).
 - **Video:** Bunny Stream (HLS + URLs firmadas), abstraído en `internal/media`
 - **Pagos:** Mercado Pago (webhooks idempotentes), abstraído en `internal/billing`
 
@@ -30,7 +31,12 @@ internal/
 db/
   migrations/       SQL plano, aplicado en orden por make migrate
   queries/          queries fuente de sqlc
-web/                React PWA (Vite) — se scaffoldea en P3
+web/                React PWA (Vite)
+  src/router.tsx    rutas + loaders (precargan en TanStack Query)
+  src/pages/        una página por ruta
+  src/components/   UI (Button fuerza la jerarquía de 4 niveles)
+  src/lib/          api, queries, formato
+  src/styles/       tokens.css (canónico) + index.css
 ```
 
 ## Desarrollo
@@ -41,7 +47,9 @@ make tools      # instala sqlc en ./bin
 make db-up      # Postgres 16 en Docker (puerto 5432)
 make migrate    # aplica db/migrations/*.sql (solo sobre base vacía)
 make sqlc       # regenera internal/store
+make seed       # contenido de desarrollo (idempotente)
 make run        # levanta la API (lee .env)
+make web-install && make web-dev   # PWA en :5173 con proxy a la API
 make help       # lista todas las tareas
 ```
 
@@ -79,5 +87,5 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
 
 ## Plan de implementación
 
-P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo → P4 video →
+P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video →
 P5 progreso → P6 pagos → P7 admin → P8 pulido UX.

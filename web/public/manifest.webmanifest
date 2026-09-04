@@ -1,0 +1,11 @@
+{
+  "name": "CoffeeCoder",
+  "short_name": "CoffeeCoder",
+  "description": "Carreras y cursos de backend en profundidad.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141414",
+  "theme_color": "#141414",
+  "lang": "es",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

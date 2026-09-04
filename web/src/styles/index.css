@@ -1,0 +1,41 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Borde por defecto del sistema: 0.5px, color border. La elevación se
+   expresa con cambio de superficie, nunca con sombra. */
+@utility hairline {
+  border-width: 0.5px;
+  border-style: solid;
+  border-color: var(--color-border);
+}
+@utility hairline-strong {
+  border-width: 0.5px;
+  border-style: solid;
+  border-color: var(--color-border-strong);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    background-color: var(--color-surface-0);
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-surface-0 text-ink font-sans antialiased;
+    font-weight: 400;
+  }
+  h1, h2, h3, h4 { font-weight: 500; }
+  strong, b { font-weight: 500; }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-on-accent);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition-duration: 0ms !important; animation: none !important; }
+  }
+}

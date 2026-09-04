@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/alejandro/coffeecoder/internal/auth"
+	"github.com/alejandro/coffeecoder/internal/catalog"
 	"github.com/alejandro/coffeecoder/internal/config"
 	"github.com/alejandro/coffeecoder/internal/store"
 )
@@ -34,14 +35,11 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 		q := store.New(pool)
 		authSvc := auth.NewService(cfg, q)
 		authHandler := auth.NewHandler(cfg, authSvc, logger)
+		catalogHandler := catalog.NewHandler(catalog.NewService(q), logger)
 
 		// --- Público (P2, P3) ---
 		r.Route("/auth", authHandler.Mount)
-
-		r.Get("/careers", todo)
-		r.Get("/careers/{slug}", todo)
-		r.Get("/courses", todo)
-		r.Get("/courses/{slug}", todo) // incluye currícula, sin asset ids
+		catalogHandler.Mount(r) // /careers, /courses: currícula sin asset ids
 
 		// --- Webhooks (P6): fuera de auth de usuario, firma propia ---
 		r.Post("/webhooks/mercadopago", todo)

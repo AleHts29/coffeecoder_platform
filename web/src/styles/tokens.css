@@ -7,6 +7,7 @@
   --color-surface-0: #141414;   /* fondo de página */
   --color-surface-1: #1B1B1D;   /* cards, sidebar */
   --color-surface-2: #242426;   /* hover, item activo */
+  --color-surface-2-hover: #2E2E30; /* hover del botón secundario (DESIGN.md) */
 
   /* Bordes */
   --color-border: #2C2C2E;

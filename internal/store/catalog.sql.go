@@ -176,6 +176,44 @@ func (q *Queries) ListCareerCourses(ctx context.Context, careerID uuid.UUID) ([]
 	return items, nil
 }
 
+const listCourseStats = `-- name: ListCourseStats :many
+SELECT
+  m.course_id,
+  COUNT(l.id)::int                 AS lesson_count,
+  COALESCE(SUM(l.duration_s), 0)::int AS duration_s
+FROM modules m
+JOIN lessons l ON l.module_id = m.id
+GROUP BY m.course_id
+`
+
+type ListCourseStatsRow struct {
+	CourseID    uuid.UUID `json:"course_id"`
+	LessonCount int32     `json:"lesson_count"`
+	DurationS   int32     `json:"duration_s"`
+}
+
+// Agregados por curso para cards y heros: cantidad de lecciones y
+// duración total. Se calcula sobre la currícula (no sobre progreso).
+func (q *Queries) ListCourseStats(ctx context.Context) ([]ListCourseStatsRow, error) {
+	rows, err := q.db.Query(ctx, listCourseStats)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCourseStatsRow
+	for rows.Next() {
+		var i ListCourseStatsRow
+		if err := rows.Scan(&i.CourseID, &i.LessonCount, &i.DurationS); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPublishedCareers = `-- name: ListPublishedCareers :many
 SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM careers
 WHERE status = 'published'
@@ -184,6 +222,47 @@ ORDER BY position, created_at
 
 func (q *Queries) ListPublishedCareers(ctx context.Context) ([]Career, error) {
 	rows, err := q.db.Query(ctx, listPublishedCareers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Career
+	for rows.Next() {
+		var i Career
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Title,
+			&i.Subtitle,
+			&i.Description,
+			&i.Level,
+			&i.PriceCents,
+			&i.Status,
+			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublishedCareersForCourse = `-- name: ListPublishedCareersForCourse :many
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at
+FROM career_courses cc
+JOIN careers c ON c.id = cc.career_id
+WHERE cc.course_id = $1 AND c.status = 'published'
+ORDER BY c.position, c.created_at
+`
+
+// Carreras publicadas que contienen el curso (para el upsell al bundle).
+func (q *Queries) ListPublishedCareersForCourse(ctx context.Context, courseID uuid.UUID) ([]Career, error) {
+	rows, err := q.db.Query(ctx, listPublishedCareersForCourse, courseID)
 	if err != nil {
 		return nil, err
 	}

@@ -19,8 +19,16 @@ funcional completa está en `docs/SPEC.md` y el design system en
   la familia, RBAC, cookie HttpOnly). Faltan los tests de service de P2.
   Tratá el código existente como diseño aprobado, no como borrador:
   mantené su estructura y decisiones, arreglá solo errores.
-- El frontend (`web/`) no existe aún salvo `web/src/styles/tokens.css`,
-  que es el design system canónico en formato Tailwind v4.
+- `internal/catalog` (P3) está implementado y probado contra el seed
+  (`make seed`): borradores ocultos, 404 en español, currícula sin
+  `video_asset_id`.
+- El frontend (`web/`) tiene el scaffold de P3: layout, landing,
+  catálogo con filtro por tueste, carrera y curso consumiendo la API
+  real. `web/src/styles/tokens.css` es el design system canónico.
+  Lighthouse accesibilidad 95. **Pendiente de aprobación:** `ink-faint`
+  (#7A7A78) no cumple AA 4.5:1 para texto chico en ningún fondo
+  (4.28 / 4.00 / 3.60); `#8C8C8A` cumple en los tres. Hasta que se
+  apruebe, se usa tal cual.
 
 ## Stack (fijo, no proponer alternativas)
 

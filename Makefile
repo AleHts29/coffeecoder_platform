@@ -51,6 +51,10 @@ migrate: ## Aplica db/migrations/*.sql en orden
 		psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f $$f; \
 	done
 
+.PHONY: seed
+seed: ## Carga contenido de desarrollo (db/seed/dev.sql, idempotente)
+	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -q -f db/seed/dev.sql
+
 .PHONY: sqlc
 sqlc: $(SQLC) ## Regenera internal/store desde db/queries
 	$(SQLC) generate
@@ -73,3 +77,20 @@ vet: ## go vet
 
 .PHONY: dev
 dev: db-up migrate sqlc run ## db-up + migrate + sqlc + run
+
+# --- Frontend ---------------------------------------------------------------
+.PHONY: web-install
+web-install: ## Instala dependencias de web/
+	$(NPM) install --no-audit --no-fund
+
+.PHONY: web-dev
+web-dev: ## Vite en :5173 con proxy /api → API local
+	$(NPM) run dev
+
+.PHONY: web-build
+web-build: ## Typecheck + build de producción en web/dist
+	$(NPM) run build
+
+.PHONY: web-typecheck
+web-typecheck: ## Solo tsc
+	$(NPM) run typecheck
