@@ -35,6 +35,13 @@ funcional completa está en `docs/SPEC.md` y el design system en
   vectores oficiales de Bunny y de acceso contra Postgres. **Pendiente
   con credenciales reales:** subir un video a Bunny y reproducirlo con
   URL firmada (necesita Token Authentication activo en el pull zone).
+- P5 (progreso) implementado: `internal/progress` (heartbeat con umbral
+  90 %, completado manual, `course_progress` materializado, dashboard
+  sobre agregados), migración `0002_daily_activity` para racha y horas,
+  player que retoma posición y marca completadas, panel en `/panel`,
+  nodos de estado en el camino y card de acceso para compradores.
+- Migraciones: `make migrate` es idempotente vía `schema_migrations`
+  (la tabla la crea el Makefile / testutil, no una migración).
 - Tests de integración: `make test` (usa `coffeecoder_test`, ver
   `internal/testutil`). Los IDs del seed están en `testutil/seed.go`.
 
@@ -80,7 +87,8 @@ web/                React PWA
 2. **`lesson_progress` es tabla caliente** (upsert por heartbeat cada
    ~15 s, con `GREATEST` para que un seek atrás no pise el máximo).
    `course_progress` es el agregado materializado que leen dashboard y
-   barras. Nunca agregar sobre la tabla caliente en lecturas.
+   barras; `daily_activity` (una fila por usuario y día) alimenta racha
+   y horas. Nunca agregar sobre la tabla caliente en lecturas.
 3. **Webhooks idempotentes** por `(provider, provider_payment_id)`:
    la transición `pending → approved` con `WHERE status = 'pending'`
    es el punto de idempotencia; si el UPDATE devuelve 0 filas, cortar.

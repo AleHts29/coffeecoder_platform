@@ -46,10 +46,17 @@ db-down: ## Baja Postgres
 	docker compose down
 
 .PHONY: migrate
-migrate: ## Aplica db/migrations/*.sql en orden
+migrate: ## Aplica las migraciones pendientes (registro en schema_migrations)
+	@$(MAKE) -s migrate-url URL="$(DB_URL)"
+
+.PHONY: migrate-url
+migrate-url:
+	@psql "$(URL)" -q -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
 	@for f in db/migrations/*.sql; do \
-		echo "==> $$f"; \
-		psql "$(DB_URL)" -v ON_ERROR_STOP=1 -f $$f; \
+		n=$$(basename $$f); \
+		if psql "$(URL)" -Atc "SELECT 1 FROM schema_migrations WHERE name='$$n'" | grep -q 1; then continue; fi; \
+		echo "==> $$n"; \
+		psql "$(URL)" -q -v ON_ERROR_STOP=1 -f $$f && psql "$(URL)" -q -c "INSERT INTO schema_migrations (name) VALUES ('$$n')"; \
 	done
 
 .PHONY: seed
@@ -75,6 +82,7 @@ test-db: ## Crea la base de tests (coffeecoder_test) si no existe
 
 .PHONY: test
 test: test-db ## Tests (unitarios + integración contra coffeecoder_test)
+	@$(MAKE) -s migrate-url URL="$(TEST_DB_URL)"
 	@TEST_DATABASE_URL="$(TEST_DB_URL)" $(GO) test ./...
 
 .PHONY: dev-videos

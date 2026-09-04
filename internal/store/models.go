@@ -59,6 +59,12 @@ type CourseProgress struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DailyActivity struct {
+	UserID  uuid.UUID   `json:"user_id"`
+	Day     pgtype.Date `json:"day"`
+	Seconds int32       `json:"seconds"`
+}
+
 type Enrollment struct {
 	ID          uuid.UUID          `json:"id"`
 	UserID      uuid.UUID          `json:"user_id"`

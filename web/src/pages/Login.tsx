@@ -23,7 +23,7 @@ export function Login({ redirect }: LoginSearch) {
     setError(null)
     try {
       await login(String(data.get('email')), String(data.get('password')))
-      void navigate({ to: redirect ?? '/', replace: true })
+      void navigate({ to: redirect ?? '/panel', replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'algo salió mal, reintentá')
     } finally {

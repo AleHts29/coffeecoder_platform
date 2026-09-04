@@ -105,6 +105,24 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
 - Player (`/cursos/:slug/lecciones/:id`): hls.js (nativo en Safari), velocidad,
   autoplay de la siguiente, modo cine, sidebar de currícula. Chunk propio.
 
+## Progreso (P5)
+
+- `POST /lessons/{id}/heartbeat` `{seconds, tz}` cada 15 s desde el player (y
+  al pausar, ocultar la pestaña o salir, con `keepalive`). Upsert con
+  `GREATEST` en `lesson_progress`; completa sola al 90 % de la duración y
+  refresca `course_progress`. El primer heartbeat de una lección también
+  refresca el agregado para que el curso pase a "en curso".
+- `POST /lessons/{id}/complete` marca manualmente. Ambos exigen enrollment
+  al curso (las muestras gratis no registran progreso sin compra).
+- `GET /me/courses/{slug}/progress`: agregado + posición por lección (el
+  player retoma en el segundo guardado). 403 si no compró.
+- `GET /me/dashboard?tz=`: "seguí donde quedaste", racha, horas de la semana,
+  carreras con estado por curso, cursos sueltos. Lee solo `course_progress`
+  y `daily_activity` (migración 0002: una fila por usuario y día; cada
+  heartbeat suma el avance real acotado a 30 s, así un seek no infla las
+  horas). Nunca agrega sobre `lesson_progress`.
+- `make migrate` registra lo aplicado en `schema_migrations` y es idempotente.
+
 ## Tests
 
 `make test` crea `coffeecoder_test`, aplica migraciones y seed una vez, y
@@ -113,5 +131,5 @@ corre cada test de integración dentro de una transacción que se revierte
 
 ## Plan de implementación
 
-P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ →
+P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ → P5 progreso ✓ →
 P5 progreso → P6 pagos → P7 admin → P8 pulido UX.

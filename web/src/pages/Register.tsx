@@ -27,7 +27,7 @@ export function Register({ redirect }: LoginSearch) {
     setError(null)
     try {
       await register(String(data.get('email')), password, String(data.get('name')))
-      void navigate({ to: redirect ?? '/', replace: true })
+      void navigate({ to: redirect ?? '/panel', replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'algo salió mal, reintentá')
     } finally {

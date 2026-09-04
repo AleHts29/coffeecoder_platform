@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getContinueWatching = `-- name: GetContinueWatching :one
@@ -61,6 +62,52 @@ func (q *Queries) GetContinueWatching(ctx context.Context, userID uuid.UUID) (Ge
 	return i, err
 }
 
+const getCourseProgress = `-- name: GetCourseProgress :one
+SELECT user_id, course_id, completed_lessons, total_lessons, last_lesson_id, updated_at FROM course_progress WHERE user_id = $1 AND course_id = $2
+`
+
+type GetCourseProgressParams struct {
+	UserID   uuid.UUID `json:"user_id"`
+	CourseID uuid.UUID `json:"course_id"`
+}
+
+func (q *Queries) GetCourseProgress(ctx context.Context, arg GetCourseProgressParams) (CourseProgress, error) {
+	row := q.db.QueryRow(ctx, getCourseProgress, arg.UserID, arg.CourseID)
+	var i CourseProgress
+	err := row.Scan(
+		&i.UserID,
+		&i.CourseID,
+		&i.CompletedLessons,
+		&i.TotalLessons,
+		&i.LastLessonID,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getLessonProgress = `-- name: GetLessonProgress :one
+SELECT user_id, lesson_id, seconds, completed, completed_at, updated_at FROM lesson_progress WHERE user_id = $1 AND lesson_id = $2
+`
+
+type GetLessonProgressParams struct {
+	UserID   uuid.UUID `json:"user_id"`
+	LessonID uuid.UUID `json:"lesson_id"`
+}
+
+func (q *Queries) GetLessonProgress(ctx context.Context, arg GetLessonProgressParams) (LessonProgress, error) {
+	row := q.db.QueryRow(ctx, getLessonProgress, arg.UserID, arg.LessonID)
+	var i LessonProgress
+	err := row.Scan(
+		&i.UserID,
+		&i.LessonID,
+		&i.Seconds,
+		&i.Completed,
+		&i.CompletedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listCourseProgressByUser = `-- name: ListCourseProgressByUser :many
 SELECT user_id, course_id, completed_lessons, total_lessons, last_lesson_id, updated_at FROM course_progress
 WHERE user_id = $1
@@ -84,6 +131,165 @@ func (q *Queries) ListCourseProgressByUser(ctx context.Context, userID uuid.UUID
 			&i.LastLessonID,
 			&i.UpdatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDailyActivitySince = `-- name: ListDailyActivitySince :many
+SELECT day, seconds FROM daily_activity
+WHERE user_id = $1 AND day >= $2
+ORDER BY day DESC
+`
+
+type ListDailyActivitySinceParams struct {
+	UserID uuid.UUID   `json:"user_id"`
+	Day    pgtype.Date `json:"day"`
+}
+
+type ListDailyActivitySinceRow struct {
+	Day     pgtype.Date `json:"day"`
+	Seconds int32       `json:"seconds"`
+}
+
+func (q *Queries) ListDailyActivitySince(ctx context.Context, arg ListDailyActivitySinceParams) ([]ListDailyActivitySinceRow, error) {
+	rows, err := q.db.Query(ctx, listDailyActivitySince, arg.UserID, arg.Day)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDailyActivitySinceRow
+	for rows.Next() {
+		var i ListDailyActivitySinceRow
+		if err := rows.Scan(&i.Day, &i.Seconds); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnrolledCareers = `-- name: ListEnrolledCareers :many
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at
+FROM enrollments e
+JOIN careers c ON c.id = e.scope_id
+WHERE e.user_id = $1 AND e.scope = 'career' AND e.revoked_at IS NULL
+ORDER BY e.activated_at DESC
+`
+
+// Carreras con enrollment vigente del usuario, en orden de compra.
+func (q *Queries) ListEnrolledCareers(ctx context.Context, userID uuid.UUID) ([]Career, error) {
+	rows, err := q.db.Query(ctx, listEnrolledCareers, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Career
+	for rows.Next() {
+		var i Career
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Title,
+			&i.Subtitle,
+			&i.Description,
+			&i.Level,
+			&i.PriceCents,
+			&i.Status,
+			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnrolledCourses = `-- name: ListEnrolledCourses :many
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at
+FROM enrollments e
+JOIN courses c ON c.id = e.scope_id
+WHERE e.user_id = $1 AND e.scope = 'course' AND e.revoked_at IS NULL
+ORDER BY e.activated_at DESC
+`
+
+// Cursos comprados sueltos (no los que vienen por carrera).
+func (q *Queries) ListEnrolledCourses(ctx context.Context, userID uuid.UUID) ([]Course, error) {
+	rows, err := q.db.Query(ctx, listEnrolledCourses, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Course
+	for rows.Next() {
+		var i Course
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Title,
+			&i.Subtitle,
+			&i.Description,
+			&i.Level,
+			&i.PriceCents,
+			&i.Status,
+			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLessonProgressByCourse = `-- name: ListLessonProgressByCourse :many
+SELECT lp.lesson_id, lp.seconds, lp.completed
+FROM lesson_progress lp
+JOIN lessons l ON l.id = lp.lesson_id
+JOIN modules m ON m.id = l.module_id
+WHERE lp.user_id = $1 AND m.course_id = $2
+`
+
+type ListLessonProgressByCourseParams struct {
+	UserID   uuid.UUID `json:"user_id"`
+	CourseID uuid.UUID `json:"course_id"`
+}
+
+type ListLessonProgressByCourseRow struct {
+	LessonID  uuid.UUID `json:"lesson_id"`
+	Seconds   int32     `json:"seconds"`
+	Completed bool      `json:"completed"`
+}
+
+// Posición y completado de cada lección de un curso para un usuario.
+// Lectura por PK acotada a las lecciones del curso, no un agregado.
+func (q *Queries) ListLessonProgressByCourse(ctx context.Context, arg ListLessonProgressByCourseParams) ([]ListLessonProgressByCourseRow, error) {
+	rows, err := q.db.Query(ctx, listLessonProgressByCourse, arg.UserID, arg.CourseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLessonProgressByCourseRow
+	for rows.Next() {
+		var i ListLessonProgressByCourseRow
+		if err := rows.Scan(&i.LessonID, &i.Seconds, &i.Completed); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -163,6 +369,25 @@ type RefreshCourseProgressParams struct {
 // MarkLessonCompleted; barato porque acota por curso.
 func (q *Queries) RefreshCourseProgress(ctx context.Context, arg RefreshCourseProgressParams) error {
 	_, err := q.db.Exec(ctx, refreshCourseProgress, arg.UserID, arg.CourseID)
+	return err
+}
+
+const upsertDailyActivity = `-- name: UpsertDailyActivity :exec
+INSERT INTO daily_activity (user_id, day, seconds)
+VALUES ($1, (now() AT TIME ZONE $3::text)::date, $2)
+ON CONFLICT (user_id, day) DO UPDATE
+  SET seconds = daily_activity.seconds + EXCLUDED.seconds
+`
+
+type UpsertDailyActivityParams struct {
+	UserID  uuid.UUID `json:"user_id"`
+	Seconds int32     `json:"seconds"`
+	Tz      string    `json:"tz"`
+}
+
+// Suma segundos de estudio al día de hoy (en la zona horaria dada).
+func (q *Queries) UpsertDailyActivity(ctx context.Context, arg UpsertDailyActivityParams) error {
+	_, err := q.db.Exec(ctx, upsertDailyActivity, arg.UserID, arg.Seconds, arg.Tz)
 	return err
 }
 

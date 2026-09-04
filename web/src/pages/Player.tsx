@@ -1,16 +1,18 @@
-import { useMemo, useState } from 'react'
-import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
+import { useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { courseQuery, playbackQuery } from '@/lib/queries'
+import { courseProgressQuery, courseQuery, playbackQuery } from '@/lib/queries'
 import { useAuth } from '@/lib/auth'
-import { ApiError } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import { useTitle } from '@/lib/useTitle'
+import { useHeartbeat } from '@/lib/useHeartbeat'
 import { prefs } from '@/lib/prefs'
 import { pad2 } from '@/lib/format'
 import { Button, ButtonLink } from '@/components/Button'
 import { VideoPlayer } from '@/components/VideoPlayer'
 import { PlayerSidebar } from '@/components/PlayerSidebar'
 import { ErrorState, Loading, NotFoundState } from '@/components/PageState'
+import { CheckIcon } from '@/components/icons'
 
 type Props = { slug: string; lessonId: string; autoplay?: boolean }
 
@@ -21,6 +23,8 @@ export function Player({ slug, lessonId, autoplay }: Props) {
   const { data: course } = useSuspenseQuery(courseQuery(slug))
   const { status, user } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const [cinema, setCinema] = useState(false)
 
   const flat = useMemo(
@@ -33,9 +37,32 @@ export function Player({ slug, lessonId, autoplay }: Props) {
 
   useTitle(lesson ? `${lesson.title} · ${course.title}` : course.title)
 
+  const userId = user?.id ?? null
   const playback = useQuery({
-    ...playbackQuery(lessonId, user?.id ?? null),
+    ...playbackQuery(lessonId, userId),
     enabled: status !== 'loading' && !!lesson,
+  })
+  // 403 acá significa "no compró": el player sigue (muestras gratis) sin progreso.
+  const progress = useQuery(courseProgressQuery(slug, userId))
+  const hasProgress = progress.isSuccess
+  const lessonProgress = progress.data?.lessons.find((l) => l.lesson_id === lessonId)
+
+  const invalidateProgress = () => {
+    void queryClient.invalidateQueries({ queryKey: ['progress', 'course', slug] })
+    void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+  }
+
+  useHeartbeat(videoRef, {
+    lessonId,
+    enabled: hasProgress && playback.isSuccess,
+    onResult: (r) => {
+      if (r.completed && !lessonProgress?.completed) invalidateProgress()
+    },
+  })
+
+  const complete = useMutation({
+    mutationFn: () => api(`/lessons/${lessonId}/complete`, { method: 'POST' }),
+    onSuccess: invalidateProgress,
   })
 
   if (!lesson) {
@@ -45,6 +72,7 @@ export function Player({ slug, lessonId, autoplay }: Props) {
   const goNext = () => {
     if (next) void navigate({ to: '/cursos/$slug/lecciones/$lessonId', params: { slug, lessonId: next.id }, search: { autoplay: true } })
   }
+  const completed = !!lessonProgress?.completed
 
   return (
     <div className={'grid gap-6 ' + (cinema ? '' : 'lg:grid-cols-[minmax(0,1fr)_320px]')}>
@@ -58,9 +86,11 @@ export function Player({ slug, lessonId, autoplay }: Props) {
             <PlaybackError error={playback.error} slug={slug} lessonId={lessonId} onRetry={() => void playback.refetch()} />
           ) : (
             <VideoPlayer
+              ref={videoRef}
               src={playback.data.url}
               title={lesson.title}
               autoplay={!!autoplay && prefs.autoplay()}
+              startAt={lessonProgress && !lessonProgress.completed ? lessonProgress.seconds : undefined}
               onEnded={() => prefs.autoplay() && goNext()}
             />
           )}
@@ -72,9 +102,20 @@ export function Player({ slug, lessonId, autoplay }: Props) {
           </p>
           <h1 className="text-2xl text-ink sm:text-3xl">{lesson.title}</h1>
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="secondary" disabled title="Disponible con el seguimiento de progreso">
-              Marcar completada
-            </Button>
+            {completed ? (
+              <span className="inline-flex h-11 items-center gap-2 font-mono text-sm text-accent">
+                <CheckIcon size={16} /> completada
+              </span>
+            ) : (
+              <Button
+                variant="secondary"
+                disabled={!hasProgress || complete.isPending}
+                title={hasProgress ? undefined : 'Disponible al comprar el curso'}
+                onClick={() => complete.mutate()}
+              >
+                Marcar completada
+              </Button>
+            )}
             <span className="flex-1" />
             <AutoplayToggle />
             <Button variant="ghost" onClick={() => setCinema((c) => !c)} className="hidden lg:inline-flex" aria-pressed={cinema}>
@@ -95,17 +136,16 @@ export function Player({ slug, lessonId, autoplay }: Props) {
               </ButtonLink>
             )}
           </div>
+          {complete.isError && (
+            <p role="alert" className="text-sm text-danger">
+              {complete.error instanceof ApiError ? complete.error.message : 'algo salió mal, reintentá'}
+            </p>
+          )}
         </header>
 
         <section aria-labelledby="tab-resumen" className="flex flex-col gap-4">
           <div role="tablist" className="flex gap-1 border-b-[0.5px] border-border">
-            <button
-              id="tab-resumen"
-              role="tab"
-              aria-selected="true"
-              type="button"
-              className="-mb-px border-b-2 border-accent px-3 py-2 text-sm text-ink"
-            >
+            <button id="tab-resumen" role="tab" aria-selected="true" type="button" className="-mb-px border-b-2 border-accent px-3 py-2 text-sm text-ink">
               Resumen
             </button>
           </div>
@@ -115,7 +155,7 @@ export function Player({ slug, lessonId, autoplay }: Props) {
         </section>
       </div>
 
-      {!cinema && <PlayerSidebar course={course} activeLessonId={lessonId} />}
+      {!cinema && <PlayerSidebar course={course} activeLessonId={lessonId} progress={progress.data} />}
     </div>
   )
 }

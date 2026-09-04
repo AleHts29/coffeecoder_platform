@@ -71,3 +71,46 @@ LIMIT 1;
 SELECT * FROM course_progress
 WHERE user_id = $1
 ORDER BY updated_at DESC;
+
+-- name: GetLessonProgress :one
+SELECT * FROM lesson_progress WHERE user_id = $1 AND lesson_id = $2;
+
+-- name: ListLessonProgressByCourse :many
+-- Posición y completado de cada lección de un curso para un usuario.
+-- Lectura por PK acotada a las lecciones del curso, no un agregado.
+SELECT lp.lesson_id, lp.seconds, lp.completed
+FROM lesson_progress lp
+JOIN lessons l ON l.id = lp.lesson_id
+JOIN modules m ON m.id = l.module_id
+WHERE lp.user_id = $1 AND m.course_id = $2;
+
+-- name: GetCourseProgress :one
+SELECT * FROM course_progress WHERE user_id = $1 AND course_id = $2;
+
+-- name: UpsertDailyActivity :exec
+-- Suma segundos de estudio al día de hoy (en la zona horaria dada).
+INSERT INTO daily_activity (user_id, day, seconds)
+VALUES ($1, (now() AT TIME ZONE sqlc.arg(tz)::text)::date, $2)
+ON CONFLICT (user_id, day) DO UPDATE
+  SET seconds = daily_activity.seconds + EXCLUDED.seconds;
+
+-- name: ListDailyActivitySince :many
+SELECT day, seconds FROM daily_activity
+WHERE user_id = $1 AND day >= $2
+ORDER BY day DESC;
+
+-- name: ListEnrolledCareers :many
+-- Carreras con enrollment vigente del usuario, en orden de compra.
+SELECT c.*
+FROM enrollments e
+JOIN careers c ON c.id = e.scope_id
+WHERE e.user_id = $1 AND e.scope = 'career' AND e.revoked_at IS NULL
+ORDER BY e.activated_at DESC;
+
+-- name: ListEnrolledCourses :many
+-- Cursos comprados sueltos (no los que vienen por carrera).
+SELECT c.*
+FROM enrollments e
+JOIN courses c ON c.id = e.scope_id
+WHERE e.user_id = $1 AND e.scope = 'course' AND e.revoked_at IS NULL
+ORDER BY e.activated_at DESC;

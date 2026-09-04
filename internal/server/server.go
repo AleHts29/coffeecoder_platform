@@ -13,6 +13,7 @@ import (
 	"github.com/alejandro/coffeecoder/internal/catalog"
 	"github.com/alejandro/coffeecoder/internal/config"
 	"github.com/alejandro/coffeecoder/internal/media"
+	"github.com/alejandro/coffeecoder/internal/progress"
 	"github.com/alejandro/coffeecoder/internal/store"
 )
 
@@ -39,6 +40,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 		catalogHandler := catalog.NewHandler(catalog.NewService(q), logger)
 		mediaSvc := media.NewService(q, newVideoProvider(cfg), cfg.Video.PlaybackTTL, logger)
 		mediaHandler := media.NewHandler(mediaSvc, cfg.Bunny.WebhookSecret, logger)
+		progressHandler := progress.NewHandler(progress.NewService(q, logger), logger)
 
 		// --- Público (P2, P3) ---
 		r.Route("/auth", authHandler.Mount)
@@ -59,10 +61,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 			r.Use(auth.Middleware(cfg.JWTSecret))
 
 			r.Get("/me", authHandler.Me)
-			r.Get("/me/dashboard", todo) // continue-watching + progreso
-
-			r.Post("/lessons/{id}/heartbeat", todo)
-			r.Post("/lessons/{id}/complete", todo)
+			progressHandler.Mount(r) // heartbeat, complete, /me/dashboard, /me/courses/{slug}/progress
 
 			r.Post("/orders", todo) // crea orden + preference de MP
 			r.Get("/orders/{id}", todo)

@@ -1,6 +1,8 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { courseQuery } from '@/lib/queries'
+import { courseProgressQuery, courseQuery } from '@/lib/queries'
+import { useAuth } from '@/lib/auth'
+import { AccessCard } from '@/components/AccessCard'
 import { useTitle } from '@/lib/useTitle'
 import { formatHours, formatPrice, plural } from '@/lib/format'
 import { LevelBadge } from '@/components/LevelBadge'
@@ -13,6 +15,9 @@ export function Course({ slug }: { slug: string }) {
   const { data: course } = useSuspenseQuery(courseQuery(slug))
   useTitle(course.title)
   const career = course.careers[0]
+  const { user } = useAuth()
+  const progress = useQuery(courseProgressQuery(course.slug, user?.id ?? null))
+  const firstLesson = course.modules[0]?.lessons[0]?.id
 
   // Upsell al bundle: el curso avisa a qué carrera pertenece.
   const upsell = career && (
@@ -30,6 +35,25 @@ export function Course({ slug }: { slug: string }) {
         carrera completa por {formatPrice(career.price_cents)}
       </span>
     </Link>
+  )
+
+  const card = progress.isSuccess ? (
+    <AccessCard
+      kind="curso"
+      completed={progress.data.completed_lessons}
+      total={progress.data.total_lessons}
+      continueTo={
+        progress.data.last_lesson_id
+          ? { slug: course.slug, lessonId: progress.data.last_lesson_id }
+          : firstLesson
+            ? { slug: course.slug, lessonId: firstLesson }
+            : null
+      }
+    />
+  ) : (
+    <PurchaseCard kind="curso" slug={course.slug} priceCents={course.price_cents}>
+      {upsell}
+    </PurchaseCard>
   )
 
   return (
@@ -51,11 +75,7 @@ export function Course({ slug }: { slug: string }) {
           )}
         </header>
 
-        <div className="lg:hidden">
-          <PurchaseCard kind="curso" slug={course.slug} priceCents={course.price_cents}>
-            {upsell}
-          </PurchaseCard>
-        </div>
+        <div className="lg:hidden">{card}</div>
 
         <section aria-labelledby="curricula" className="flex flex-col gap-6">
           <div className="flex flex-col gap-1">
@@ -70,11 +90,7 @@ export function Course({ slug }: { slug: string }) {
         </section>
       </div>
 
-      <div className="hidden lg:block">
-        <PurchaseCard kind="curso" slug={course.slug} priceCents={course.price_cents}>
-          {upsell}
-        </PurchaseCard>
-      </div>
+      <div className="hidden lg:block">{card}</div>
     </article>
   )
 }

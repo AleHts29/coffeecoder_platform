@@ -56,19 +56,28 @@ func prepare(url string) error {
 		return err
 	}
 
-	// Migraciones solo sobre base vacía (no son idempotentes); el seed sí lo es.
-	var hasUsers bool
-	if err := pool.QueryRow(ctx, "SELECT to_regclass('public.users') IS NOT NULL").Scan(&hasUsers); err != nil {
+	// Migraciones pendientes según schema_migrations (mismo registro que
+	// `make migrate`); el seed es idempotente y se aplica siempre.
+	if _, err := pool.Exec(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"); err != nil {
 		return err
 	}
 	root := repoRoot()
-	if !hasUsers {
-		files, _ := filepath.Glob(filepath.Join(root, "db", "migrations", "*.sql"))
-		sort.Strings(files)
-		for _, f := range files {
-			if err := execFile(ctx, f); err != nil {
-				return err
-			}
+	files, _ := filepath.Glob(filepath.Join(root, "db", "migrations", "*.sql"))
+	sort.Strings(files)
+	for _, f := range files {
+		name := filepath.Base(f)
+		var applied bool
+		if err := pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1)", name).Scan(&applied); err != nil {
+			return err
+		}
+		if applied {
+			continue
+		}
+		if err := execFile(ctx, f); err != nil {
+			return err
+		}
+		if _, err := pool.Exec(ctx, "INSERT INTO schema_migrations (name) VALUES ($1)", name); err != nil {
+			return err
 		}
 	}
 	return execFile(ctx, filepath.Join(root, "db", "seed", "dev.sql"))

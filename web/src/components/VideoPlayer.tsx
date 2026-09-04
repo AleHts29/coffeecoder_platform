@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import Hls from 'hls.js'
 import { prefs } from '@/lib/prefs'
 
@@ -8,18 +8,24 @@ type Props = {
   src: string
   title: string
   autoplay: boolean
+  /** Segundo desde el que retomar (posición guardada). */
+  startAt?: number
   onEnded?: () => void
 }
 
 // Player HLS: hls.js donde hace falta (Chrome, Firefox), nativo en
 // Safari. La calidad la maneja HLS (ABR). Controles nativos + velocidad.
-export function VideoPlayer({ src, title, autoplay, onEnded }: Props) {
-  const ref = useRef<HTMLVideoElement>(null)
+export const VideoPlayer = forwardRef<HTMLVideoElement | null, Props>(function VideoPlayer(
+  { src, title, autoplay, startAt, onEnded },
+  ref,
+) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement, [])
   const [rate, setRate] = useState(prefs.rate)
   const [unsupported, setUnsupported] = useState(false)
 
   useEffect(() => {
-    const video = ref.current
+    const video = videoRef.current
     if (!video) return
     video.playbackRate = rate
 
@@ -40,8 +46,21 @@ export function VideoPlayer({ src, title, autoplay, onEnded }: Props) {
   }, [src])
 
   useEffect(() => {
-    if (ref.current) ref.current.playbackRate = rate
+    if (videoRef.current) videoRef.current.playbackRate = rate
   }, [rate])
+
+  // Retomar: al conocer la duración, saltar a la posición guardada salvo
+  // que esté a punto de terminar (ahí conviene arrancar de cero).
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !startAt) return
+    const seek = () => {
+      if (Number.isFinite(video.duration) && startAt < video.duration - 5) video.currentTime = startAt
+    }
+    if (video.readyState >= 1) seek()
+    else video.addEventListener('loadedmetadata', seek, { once: true })
+    return () => video.removeEventListener('loadedmetadata', seek)
+  }, [startAt, src])
 
   if (unsupported) {
     return (
@@ -54,7 +73,7 @@ export function VideoPlayer({ src, title, autoplay, onEnded }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <video
-        ref={ref}
+        ref={videoRef}
         controls
         playsInline
         autoPlay={autoplay}
@@ -85,4 +104,4 @@ export function VideoPlayer({ src, title, autoplay, onEnded }: Props) {
       </div>
     </div>
   )
-}
+})
