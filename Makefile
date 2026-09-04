@@ -21,7 +21,8 @@ WEB_PATH := $(if $(NODE_BIN),$(NODE_BIN):$(PATH),$(PATH))
 NPM      := PATH="$(WEB_PATH)" npm --prefix web
 
 # --- Config -----------------------------------------------------------------
-DB_URL ?= postgres://coffee:coffee@localhost:5432/coffeecoder?sslmode=disable
+DB_URL      ?= postgres://coffee:coffee@localhost:5432/coffeecoder?sslmode=disable
+TEST_DB_URL ?= postgres://coffee:coffee@localhost:5432/coffeecoder_test?sslmode=disable
 ENV_FILE := .env
 # Carga .env en el entorno de las recetas que lo necesitan.
 LOAD_ENV := set -a && [ -f $(ENV_FILE) ] && source $(ENV_FILE); set +a
@@ -67,9 +68,18 @@ build: ## Compila todo
 run: ## Levanta la API (HTTP_ADDR de .env)
 	@$(LOAD_ENV); $(GO) run ./cmd/api
 
+.PHONY: test-db
+test-db: ## Crea la base de tests (coffeecoder_test) si no existe
+	@psql "$(DB_URL)" -Atc "SELECT 1 FROM pg_database WHERE datname='coffeecoder_test'" | grep -q 1 || \
+		psql "$(DB_URL)" -c "CREATE DATABASE coffeecoder_test"
+
 .PHONY: test
-test: ## Tests unitarios
-	@$(LOAD_ENV); $(GO) test ./...
+test: test-db ## Tests (unitarios + integración contra coffeecoder_test)
+	@TEST_DATABASE_URL="$(TEST_DB_URL)" $(GO) test ./...
+
+.PHONY: dev-videos
+dev-videos: ## Marca las lecciones del seed como 'ready' con assets fake (VIDEO_PROVIDER=fake)
+	psql "$(DB_URL)" -Atc "UPDATE lessons SET video_provider='bunny', video_asset_id='fake-'||id, video_status='ready' WHERE video_asset_id IS NULL"
 
 .PHONY: vet
 vet: ## go vet

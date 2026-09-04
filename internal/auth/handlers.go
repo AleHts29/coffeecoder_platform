@@ -133,6 +133,21 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Me devuelve el usuario autenticado. Se monta detrás de Middleware.
+func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+	id, ok := IdentityFrom(r.Context())
+	if !ok {
+		httpx.Error(w, http.StatusUnauthorized, "token requerido")
+		return
+	}
+	user, err := h.svc.q.GetUserByID(r.Context(), id.UserID)
+	if err != nil {
+		httpx.Error(w, http.StatusUnauthorized, "sesión inválida, iniciá sesión de nuevo")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, publicUser(user))
+}
+
 func (h *Handler) oauthStart(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
 

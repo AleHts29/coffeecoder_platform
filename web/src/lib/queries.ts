@@ -13,3 +13,17 @@ export const coursesQuery = () =>
 
 export const courseQuery = (slug: string) =>
   queryOptions({ queryKey: ['courses', slug], queryFn: () => api<CourseDetail>(`/courses/${slug}`) })
+
+export interface Playback {
+  url: string
+  expires_at: string
+}
+
+// La key incluye al usuario: al loguearse cambia y se vuelve a pedir.
+export const playbackQuery = (lessonId: string, userId: string | null) =>
+  queryOptions({
+    queryKey: ['playback', lessonId, userId],
+    queryFn: () => api<Playback>(`/lessons/${lessonId}/playback`),
+    staleTime: 5 * 60_000,
+    retry: false,
+  })

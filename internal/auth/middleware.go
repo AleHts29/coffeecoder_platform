@@ -57,6 +57,22 @@ func Middleware(jwtSecret string) func(http.Handler) http.Handler {
 	}
 }
 
+// OptionalMiddleware carga la identidad si viene un Bearer válido y
+// deja pasar como visitante si no viene ninguno. Un token presente pero
+// inválido sigue siendo 401: no degradamos silenciosamente a anónimo.
+func OptionalMiddleware(jwtSecret string) func(http.Handler) http.Handler {
+	strict := Middleware(jwtSecret)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := bearer(r); !ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+			strict(next).ServeHTTP(w, r)
+		})
+	}
+}
+
 // RequireRole corta con 403 si la identidad no tiene el rol pedido.
 // Se monta después de Middleware.
 func RequireRole(role string) func(http.Handler) http.Handler {

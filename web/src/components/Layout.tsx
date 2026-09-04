@@ -1,7 +1,10 @@
 import { Link, Outlet } from '@tanstack/react-router'
 import { Wordmark } from './Wordmark'
+import { useAuth } from '@/lib/auth'
+import { Button, ButtonLink } from './Button'
 
 export function Layout() {
+  const { status, user, logout } = useAuth()
   return (
     <div className="flex min-h-dvh flex-col">
       <a
@@ -27,6 +30,23 @@ export function Layout() {
                   Catálogo
                 </Link>
               </li>
+              {status === 'anonymous' && (
+                <li>
+                  <ButtonLink variant="ghost" to="/ingresar" search={{}}>
+                    Ingresar
+                  </ButtonLink>
+                </li>
+              )}
+              {status === 'authenticated' && user && (
+                <>
+                  <li className="hidden px-2 text-sm text-ink-soft sm:block">{user.name || user.email}</li>
+                  <li>
+                    <Button variant="ghost" onClick={() => void logout()}>
+                      Salir
+                    </Button>
+                  </li>
+                </>
+              )}
             </ul>
           </nav>
         </div>

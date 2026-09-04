@@ -18,8 +18,18 @@ type Config struct {
 	RefreshTokenTTL time.Duration
 
 	OAuth OAuthConfig
+	Video VideoConfig
 	Bunny BunnyConfig
 	MP    MercadoPagoConfig
+}
+
+// VideoConfig elige la implementación de media.VideoProvider.
+// "bunny" en producción; "fake" para desarrollo sin credenciales
+// (reproduce FakeURL, un HLS público, para probar el player).
+type VideoConfig struct {
+	Provider    string // bunny | fake
+	FakeURL     string
+	PlaybackTTL time.Duration
 }
 
 type OAuthConfig struct {
@@ -30,10 +40,12 @@ type OAuthConfig struct {
 }
 
 type BunnyConfig struct {
-	LibraryID    string
-	APIKey       string
-	TokenAuthKey string
-	CDNHostname  string
+	LibraryID     string
+	APIKey        string // API key de la librería (escritura): crear videos, TUS
+	WebhookSecret string // API key de solo lectura: firma HMAC de los webhooks
+	TokenAuthKey  string // Token Authentication Key del pull zone
+	CDNHostname   string // vz-xxxx.b-cdn.net
+	APIBaseURL    string // override para tests
 }
 
 type MercadoPagoConfig struct {
@@ -55,11 +67,17 @@ func Load() (Config, error) {
 			GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
 			GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 		},
+		Video: VideoConfig{
+			Provider: getenv("VIDEO_PROVIDER", "bunny"),
+			FakeURL:  getenv("FAKE_VIDEO_URL", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"),
+		},
 		Bunny: BunnyConfig{
-			LibraryID:    os.Getenv("BUNNY_LIBRARY_ID"),
-			APIKey:       os.Getenv("BUNNY_API_KEY"),
-			TokenAuthKey: os.Getenv("BUNNY_TOKEN_AUTH_KEY"),
-			CDNHostname:  os.Getenv("BUNNY_CDN_HOSTNAME"),
+			LibraryID:     os.Getenv("BUNNY_LIBRARY_ID"),
+			APIKey:        os.Getenv("BUNNY_API_KEY"),
+			WebhookSecret: os.Getenv("BUNNY_WEBHOOK_SECRET"),
+			TokenAuthKey:  os.Getenv("BUNNY_TOKEN_AUTH_KEY"),
+			CDNHostname:   os.Getenv("BUNNY_CDN_HOSTNAME"),
+			APIBaseURL:    getenv("BUNNY_API_BASE_URL", "https://video.bunnycdn.com"),
 		},
 		MP: MercadoPagoConfig{
 			AccessToken:   os.Getenv("MP_ACCESS_TOKEN"),
@@ -73,6 +91,15 @@ func Load() (Config, error) {
 	}
 	if cfg.RefreshTokenTTL, err = parseDuration("REFRESH_TOKEN_TTL", 30*24*time.Hour); err != nil {
 		return cfg, err
+	}
+	if cfg.Video.PlaybackTTL, err = parseDuration("PLAYBACK_TTL", 6*time.Hour); err != nil {
+		return cfg, err
+	}
+	if cfg.Video.Provider != "bunny" && cfg.Video.Provider != "fake" {
+		return cfg, fmt.Errorf("VIDEO_PROVIDER inválido: %q (bunny | fake)", cfg.Video.Provider)
+	}
+	if cfg.Env != "development" && cfg.Video.Provider == "fake" {
+		return cfg, fmt.Errorf("VIDEO_PROVIDER=fake solo se permite en development")
 	}
 
 	if cfg.DatabaseURL == "" {

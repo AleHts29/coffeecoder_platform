@@ -56,3 +56,11 @@ RETURNING *;
 SELECT * FROM enrollments
 WHERE user_id = $1 AND revoked_at IS NULL
 ORDER BY activated_at DESC;
+
+-- name: RevokeEnrollment :one
+-- Reembolso o baja administrativa. Idempotente: revocar dos veces no
+-- mueve la fecha original.
+UPDATE enrollments
+SET revoked_at = COALESCE(revoked_at, now())
+WHERE id = $1
+RETURNING *;

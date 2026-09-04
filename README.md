@@ -85,7 +85,33 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
   existe, la identidad se vincula a la cuenta local.
 - RBAC por middleware: `auth.Middleware` + `auth.RequireRole("admin")`.
 
+## Video (P4)
+
+- `media.VideoProvider` con dos implementaciones: `Bunny` (real) y `Fake`
+  (desarrollo, `VIDEO_PROVIDER=fake`: reproduce un HLS público sin
+  credenciales; `make dev-videos` marca las lecciones del seed como listas).
+- Playback: `GET /lessons/{id}/playback` con auth opcional. Visitantes solo
+  ven muestras gratis (401 si no), alumnos sin enrollment reciben 403, video
+  no procesado 409. Devuelve la URL HLS firmada con TTL `PLAYBACK_TTL` (6 h).
+- Firma de URLs: esquema vigente de bunny.net (`HS256-` + HMAC-SHA256, token
+  de directorio `token_path=/{guid}/` para playlist y segmentos), verificada
+  contra los vectores oficiales de `BunnyWay/BunnyCDN.TokenAuthentication`.
+  Requiere Token Authentication activado en el pull zone de la librería.
+- Upload: `POST /admin/lessons/{id}/video` crea el asset y devuelve el ticket
+  TUS (endpoint + headers firmados) para que el browser suba directo.
+  `POST /admin/lessons/{id}/video/sync` consulta estado y duración a mano.
+- Webhook `POST /webhooks/bunny`: HMAC-SHA256 del cuerpo con la API key de
+  solo lectura (`BUNNY_WEBHOOK_SECRET`), comparación en tiempo constante.
+- Player (`/cursos/:slug/lecciones/:id`): hls.js (nativo en Safari), velocidad,
+  autoplay de la siguiente, modo cine, sidebar de currícula. Chunk propio.
+
+## Tests
+
+`make test` crea `coffeecoder_test`, aplica migraciones y seed una vez, y
+corre cada test de integración dentro de una transacción que se revierte
+(`internal/testutil`). Sin `TEST_DATABASE_URL` los de integración se saltan.
+
 ## Plan de implementación
 
-P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video →
+P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ →
 P5 progreso → P6 pagos → P7 admin → P8 pulido UX.

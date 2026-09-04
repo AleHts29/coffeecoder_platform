@@ -16,8 +16,8 @@ funcional completa está en `docs/SPEC.md` y el design system en
 - `internal/` tiene P1 y P2 **compilados y probados** (2026-09-04):
   `go build ./...` y `go vet` limpios, y el flujo de auth verificado
   contra Postgres real (registro, login, refresh rotado, reuso revoca
-  la familia, RBAC, cookie HttpOnly). Faltan los tests de service de P2.
-  Tratá el código existente como diseño aprobado, no como borrador:
+  la familia, RBAC, cookie HttpOnly) y con tests de service en
+  `internal/auth/service_test.go`. Tratá el código existente como diseño aprobado, no como borrador:
   mantené su estructura y decisiones, arreglá solo errores.
 - `internal/catalog` (P3) está implementado y probado contra el seed
   (`make seed`): borradores ocultos, 404 en español, currícula sin
@@ -29,6 +29,14 @@ funcional completa está en `docs/SPEC.md` y el design system en
   (#7A7A78) no cumple AA 4.5:1 para texto chico en ningún fondo
   (4.28 / 4.00 / 3.60); `#8C8C8A` cumple en los tres. Hasta que se
   apruebe, se usa tal cual.
+- P4 (video) implementado: `internal/media` con Bunny real y Fake de
+  desarrollo, playback con auth opcional, webhook firmado, tickets TUS,
+  player HLS y login/registro en la PWA. Tests de firma contra los
+  vectores oficiales de Bunny y de acceso contra Postgres. **Pendiente
+  con credenciales reales:** subir un video a Bunny y reproducirlo con
+  URL firmada (necesita Token Authentication activo en el pull zone).
+- Tests de integración: `make test` (usa `coffeecoder_test`, ver
+  `internal/testutil`). Los IDs del seed están en `testutil/seed.go`.
 
 ## Stack (fijo, no proponer alternativas)
 

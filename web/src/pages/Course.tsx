@@ -66,7 +66,7 @@ export function Course({ slug }: { slug: string }) {
               Las lecciones marcadas como gratis se pueden ver sin comprar.
             </p>
           </div>
-          <Curriculum modules={course.modules} />
+          <Curriculum modules={course.modules} courseSlug={course.slug} />
         </section>
       </div>
 

@@ -12,6 +12,7 @@ import (
 	"github.com/alejandro/coffeecoder/internal/auth"
 	"github.com/alejandro/coffeecoder/internal/catalog"
 	"github.com/alejandro/coffeecoder/internal/config"
+	"github.com/alejandro/coffeecoder/internal/media"
 	"github.com/alejandro/coffeecoder/internal/store"
 )
 
@@ -36,23 +37,30 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 		authSvc := auth.NewService(cfg, q)
 		authHandler := auth.NewHandler(cfg, authSvc, logger)
 		catalogHandler := catalog.NewHandler(catalog.NewService(q), logger)
+		mediaSvc := media.NewService(q, newVideoProvider(cfg), cfg.Video.PlaybackTTL, logger)
+		mediaHandler := media.NewHandler(mediaSvc, cfg.Bunny.WebhookSecret, logger)
 
 		// --- Público (P2, P3) ---
 		r.Route("/auth", authHandler.Mount)
 		catalogHandler.Mount(r) // /careers, /courses: currícula sin asset ids
 
-		// --- Webhooks (P6): fuera de auth de usuario, firma propia ---
+		// --- Webhooks (P4, P6): fuera de auth de usuario, firma propia ---
 		r.Post("/webhooks/mercadopago", todo)
-		r.Post("/webhooks/bunny", todo)
+		mediaHandler.MountWebhooks(r) // /webhooks/bunny
 
-		// --- Autenticado (P4, P5, P6) ---
+		// --- Auth opcional (P4): muestras gratis para visitantes ---
+		r.Group(func(r chi.Router) {
+			r.Use(auth.OptionalMiddleware(cfg.JWTSecret))
+			mediaHandler.MountPlayback(r) // /lessons/{id}/playback
+		})
+
+		// --- Autenticado (P5, P6) ---
 		r.Group(func(r chi.Router) {
 			r.Use(auth.Middleware(cfg.JWTSecret))
 
-			r.Get("/me", todo)
+			r.Get("/me", authHandler.Me)
 			r.Get("/me/dashboard", todo) // continue-watching + progreso
 
-			r.Get("/lessons/{id}/playback", todo) // URL firmada Bunny (P4)
 			r.Post("/lessons/{id}/heartbeat", todo)
 			r.Post("/lessons/{id}/complete", todo)
 
@@ -68,12 +76,21 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 				r.Post("/courses", todo)
 				r.Post("/courses/{id}/modules", todo)
 				r.Post("/modules/{id}/lessons", todo)
-				r.Post("/lessons/{id}/video", todo) // inicia upload a Bunny
+				mediaHandler.MountAdmin(r) // /lessons/{id}/video, /video/sync
 			})
 		})
 	})
 
 	return r
+}
+
+// newVideoProvider elige la implementación según config. El resto del
+// server solo conoce la interfaz.
+func newVideoProvider(cfg config.Config) media.VideoProvider {
+	if cfg.Video.Provider == "fake" {
+		return media.NewFake(cfg.Video.FakeURL)
+	}
+	return media.NewBunny(cfg.Bunny)
 }
 
 func todo(w http.ResponseWriter, _ *http.Request) {

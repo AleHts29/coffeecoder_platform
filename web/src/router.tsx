@@ -3,6 +3,7 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   notFound,
   useRouter,
   type ErrorComponentProps,
@@ -17,6 +18,9 @@ import { Catalog, type CatalogSearch } from '@/pages/Catalog'
 import { Career } from '@/pages/Career'
 import { Course } from '@/pages/Course'
 import { Checkout, type CheckoutSearch } from '@/pages/Checkout'
+import { Login, type LoginSearch } from '@/pages/Login'
+import { Register } from '@/pages/Register'
+import { AuthCallback } from '@/pages/AuthCallback'
 
 // Router code-based (sin plugin de generación): las rutas tipadas viven acá.
 // Los loaders precargan en el QueryClient; las páginas leen con
@@ -120,7 +124,66 @@ const checkoutRoute = createRoute({
   },
 })
 
-const routeTree = rootRoute.addChildren([indexRoute, catalogRoute, careerRoute, courseRoute, checkoutRoute])
+const redirectSearch = (s: Record<string, unknown>): LoginSearch =>
+  typeof s.redirect === 'string' && s.redirect.startsWith('/') ? { redirect: s.redirect } : {}
+
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/ingresar',
+  validateSearch: redirectSearch,
+  component: function LoginRoute() {
+    const { redirect } = loginRoute.useSearch()
+    return <Login redirect={redirect} />
+  },
+})
+
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/registro',
+  validateSearch: redirectSearch,
+  component: function RegisterRoute() {
+    const { redirect } = registerRoute.useSearch()
+    return <Register redirect={redirect} />
+  },
+})
+
+const authCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/auth/callback',
+  component: AuthCallback,
+})
+
+// El player carga hls.js: va en su propio chunk para no pesar en el catálogo.
+const Player = lazyRouteComponent(() => import('@/pages/Player'), 'Player')
+
+const playerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cursos/$slug/lecciones/$lessonId',
+  validateSearch: (s: Record<string, unknown>): { autoplay?: boolean } =>
+    s.autoplay === true || s.autoplay === 'true' ? { autoplay: true } : {},
+  loader: ({ context: { queryClient }, params }) =>
+    orNotFound(queryClient.ensureQueryData(courseQuery(params.slug))),
+  notFoundComponent: () => (
+    <NotFoundState title="Ese curso no existe" message="O ya no está disponible. Los cursos vigentes están en el catálogo." />
+  ),
+  component: function PlayerRoute() {
+    const { slug, lessonId } = playerRoute.useParams()
+    const { autoplay } = playerRoute.useSearch()
+    return <Player slug={slug} lessonId={lessonId} autoplay={autoplay} />
+  },
+})
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  catalogRoute,
+  careerRoute,
+  courseRoute,
+  playerRoute,
+  checkoutRoute,
+  loginRoute,
+  registerRoute,
+  authCallbackRoute,
+])
 
 export function makeRouter(queryClient: QueryClient) {
   return createRouter({
