@@ -13,6 +13,7 @@ import (
 
 	"github.com/alejandro/coffeecoder/internal/config"
 	"github.com/alejandro/coffeecoder/internal/httpx"
+	"github.com/alejandro/coffeecoder/internal/mail"
 	"github.com/alejandro/coffeecoder/internal/store"
 )
 
@@ -24,11 +25,12 @@ const (
 type Handler struct {
 	cfg    config.Config
 	svc    *Service
+	mailer mail.Mailer
 	logger *slog.Logger
 }
 
-func NewHandler(cfg config.Config, svc *Service, logger *slog.Logger) *Handler {
-	return &Handler{cfg: cfg, svc: svc, logger: logger}
+func NewHandler(cfg config.Config, svc *Service, mailer mail.Mailer, logger *slog.Logger) *Handler {
+	return &Handler{cfg: cfg, svc: svc, mailer: mailer, logger: logger}
 }
 
 func (h *Handler) Mount(r chi.Router) {
@@ -67,6 +69,9 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, "register", err)
 		return
 	}
+
+	subject, html, text := mail.Welcome(user.Name)
+	mail.SendAsync(h.mailer, h.logger, mail.Message{To: user.Email, Subject: subject, HTML: html, Text: text, IdempotencyKey: "welcome-" + user.ID.String()})
 
 	h.setRefreshCookie(w, pair.RefreshToken)
 	httpx.JSON(w, http.StatusCreated, authResponse{

@@ -10,8 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/alejandro/coffeecoder/internal/auth"
+	"github.com/alejandro/coffeecoder/internal/billing"
 	"github.com/alejandro/coffeecoder/internal/catalog"
 	"github.com/alejandro/coffeecoder/internal/config"
+	"github.com/alejandro/coffeecoder/internal/mail"
 	"github.com/alejandro/coffeecoder/internal/media"
 	"github.com/alejandro/coffeecoder/internal/progress"
 	"github.com/alejandro/coffeecoder/internal/store"
@@ -35,20 +37,23 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 
 	r.Route("/api/v1", func(r chi.Router) {
 		q := store.New(pool)
+		mailer := mail.New(cfg.Mail, logger)
 		authSvc := auth.NewService(cfg, q)
-		authHandler := auth.NewHandler(cfg, authSvc, logger)
+		authHandler := auth.NewHandler(cfg, authSvc, mailer, logger)
 		catalogHandler := catalog.NewHandler(catalog.NewService(q), logger)
 		mediaSvc := media.NewService(q, newVideoProvider(cfg), cfg.Video.PlaybackTTL, logger)
 		mediaHandler := media.NewHandler(mediaSvc, cfg.Bunny.WebhookSecret, logger)
 		progressHandler := progress.NewHandler(progress.NewService(q, logger), logger)
+		billingSvc := billing.NewService(q, newPaymentProvider(cfg), mailer, cfg.Billing, cfg.FrontendURL, logger)
+		billingHandler := billing.NewHandler(billingSvc, q, logger)
 
 		// --- Público (P2, P3) ---
 		r.Route("/auth", authHandler.Mount)
 		catalogHandler.Mount(r) // /careers, /courses: currícula sin asset ids
 
 		// --- Webhooks (P4, P6): fuera de auth de usuario, firma propia ---
-		r.Post("/webhooks/mercadopago", todo)
-		mediaHandler.MountWebhooks(r) // /webhooks/bunny
+		billingHandler.MountWebhooks(r) // /webhooks/mercadopago
+		mediaHandler.MountWebhooks(r)   // /webhooks/bunny
 
 		// --- Auth opcional (P4): muestras gratis para visitantes ---
 		r.Group(func(r chi.Router) {
@@ -62,9 +67,7 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 
 			r.Get("/me", authHandler.Me)
 			progressHandler.Mount(r) // heartbeat, complete, /me/dashboard, /me/courses/{slug}/progress
-
-			r.Post("/orders", todo) // crea orden + preference de MP
-			r.Get("/orders/{id}", todo)
+			billingHandler.Mount(r)  // /orders, /orders/{id}, /me/orders
 		})
 
 		// --- Admin (P7) ---
@@ -75,7 +78,8 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 				r.Post("/courses", todo)
 				r.Post("/courses/{id}/modules", todo)
 				r.Post("/modules/{id}/lessons", todo)
-				mediaHandler.MountAdmin(r) // /lessons/{id}/video, /video/sync
+				mediaHandler.MountAdmin(r)   // /lessons/{id}/video, /video/sync
+				billingHandler.MountAdmin(r) // /orders, /orders/{id}/refund
 			})
 		})
 	})
@@ -90,6 +94,13 @@ func newVideoProvider(cfg config.Config) media.VideoProvider {
 		return media.NewFake(cfg.Video.FakeURL)
 	}
 	return media.NewBunny(cfg.Bunny)
+}
+
+func newPaymentProvider(cfg config.Config) billing.PaymentProvider {
+	if cfg.Billing.Provider == "fake" {
+		return billing.NewFake(cfg.FrontendURL)
+	}
+	return billing.NewMercadoPago(cfg.MP, cfg.PublicBaseURL, cfg.FrontendURL)
 }
 
 func todo(w http.ResponseWriter, _ *http.Request) {

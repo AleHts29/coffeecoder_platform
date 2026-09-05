@@ -123,6 +123,30 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
   horas). Nunca agrega sobre `lesson_progress`.
 - `make migrate` registra lo aplicado en `schema_migrations` y es idempotente.
 
+## Pagos y emails (P6)
+
+- `billing.PaymentProvider`: `MercadoPago` (Checkout Pro: preference con
+  hasta 12 cuotas, `external_reference` = id de orden, `back_urls` a
+  `/checkout/resultado`, webhook firmado) y `Fake` (`BILLING_PROVIDER=fake`,
+  solo development: `make dev-pay ORDER=<id>` aprueba la orden).
+- Precio regional interino: el catálogo está en USD; `BILLING_USD_RATE` y
+  `BILLING_CURRENCY` (ARS) convierten al crear la orden. El monto queda
+  fijado en la orden.
+- `POST /orders` crea (o reutiliza la pending reciente) y devuelve
+  `checkout_url`; `GET /orders/{id}`; `GET /me/orders`. 409 si ya tiene acceso.
+- Webhook `POST /webhooks/mercadopago`: valida `x-signature`
+  (`hex(HMAC-SHA256(secret, "id:{data.id};request-id:{x-request-id};ts:{ts};"))`),
+  consulta `GET /v1/payments/{id}` y aplica `ApproveOrder` con
+  `WHERE status = 'pending'`: reenviar N veces genera un solo enrollment.
+  Una carrera da acceso a todos sus cursos por el JOIN de `access.sql`.
+- `POST /admin/orders/{id}/refund`: reembolsa en el provider
+  (`X-Idempotency-Key`), marca `refunded` y revoca el enrollment.
+  `GET /admin/orders` lista para P7.
+- `internal/mail`: Resend (`RESEND_API_KEY`) o log en development. Bienvenida
+  al registrarse y confirmación de compra, asíncronos y best-effort.
+- Frontend: `/checkout` (resumen + único botón), `/checkout/resultado`
+  (polling de la orden hasta salir de pending), `/cuenta` (perfil y compras).
+
 ## Tests
 
 `make test` crea `coffeecoder_test`, aplica migraciones y seed una vez, y
@@ -131,5 +155,5 @@ corre cada test de integración dentro de una transacción que se revierte
 
 ## Plan de implementación
 
-P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ → P5 progreso ✓ →
+P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ → P5 progreso ✓ → P6 pagos ✓ →
 P5 progreso → P6 pagos → P7 admin → P8 pulido UX.

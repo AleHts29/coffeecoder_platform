@@ -49,6 +49,15 @@ export function Layout() {
                     </Link>
                   </li>
                   <li>
+                    <Link
+                      to="/cuenta"
+                      className="inline-flex h-11 items-center rounded-control px-3 text-sm text-ink-soft transition-colors duration-150 hover:bg-surface-2 hover:text-ink"
+                      activeProps={{ className: 'text-ink', 'aria-current': 'page' }}
+                    >
+                      Mi cuenta
+                    </Link>
+                  </li>
+                  <li>
                     <Button variant="ghost" onClick={() => void logout()}>
                       Salir
                     </Button>

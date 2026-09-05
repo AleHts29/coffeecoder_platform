@@ -22,6 +22,8 @@ import { Login, type LoginSearch } from '@/pages/Login'
 import { Register } from '@/pages/Register'
 import { AuthCallback } from '@/pages/AuthCallback'
 import { Dashboard } from '@/pages/Dashboard'
+import { CheckoutResult, type ResultSearch } from '@/pages/CheckoutResult'
+import { Account } from '@/pages/Account'
 
 // Router code-based (sin plugin de generación): las rutas tipadas viven acá.
 // Los loaders precargan en el QueryClient; las páginas leen con
@@ -148,6 +150,26 @@ const registerRoute = createRoute({
   },
 })
 
+const checkoutResultRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/checkout/resultado',
+  validateSearch: (s: Record<string, unknown>): ResultSearch => ({
+    orden: typeof s.orden === 'string' ? s.orden : '',
+    estado: s.estado === 'aprobado' || s.estado === 'pendiente' || s.estado === 'rechazado' ? s.estado : undefined,
+    simulado: s.simulado === true || s.simulado === '1' || s.simulado === 1 ? true : undefined,
+  }),
+  component: function CheckoutResultRoute() {
+    const search = checkoutResultRoute.useSearch()
+    return <CheckoutResult {...search} />
+  },
+})
+
+const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/cuenta',
+  component: Account,
+})
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/panel',
@@ -191,6 +213,8 @@ const routeTree = rootRoute.addChildren([
   registerRoute,
   authCallbackRoute,
   dashboardRoute,
+  checkoutResultRoute,
+  accountRoute,
 ])
 
 export function makeRouter(queryClient: QueryClient) {

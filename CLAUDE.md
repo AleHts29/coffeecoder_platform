@@ -40,6 +40,11 @@ funcional completa está en `docs/SPEC.md` y el design system en
   sobre agregados), migración `0002_daily_activity` para racha y horas,
   player que retoma posición y marca completadas, panel en `/panel`,
   nodos de estado en el camino y card de acceso para compradores.
+- P6 (pagos + emails) implementado: `internal/billing` (Mercado Pago
+  Checkout Pro + Fake de dev, webhook firmado e idempotente, reembolso
+  admin) e `internal/mail` (Resend + log). Probado con el fake; con
+  credenciales reales falta la compra en sandbox de MP. Los tests
+  cubren N webhooks = 1 enrollment y carrera = todos sus cursos.
 - Migraciones: `make migrate` es idempotente vía `schema_migrations`
   (la tabla la crea el Makefile / testutil, no una migración).
 - Tests de integración: `make test` (usa `coffeecoder_test`, ver

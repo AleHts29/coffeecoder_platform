@@ -63,6 +63,12 @@ migrate-url:
 seed: ## Carga contenido de desarrollo (db/seed/dev.sql, idempotente)
 	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -q -f db/seed/dev.sql
 
+.PHONY: dev-pay
+dev-pay: ## Aprueba una orden con el provider fake: make dev-pay ORDER=<uuid>
+	@test -n "$(ORDER)" || (echo "uso: make dev-pay ORDER=<uuid>"; exit 1)
+	@$(LOAD_ENV); curl -s -o /dev/null -w "webhook → HTTP %{http_code}\n" -X POST "$${PUBLIC_BASE_URL:-http://localhost:8081}/api/v1/webhooks/mercadopago" \
+		-H "Content-Type: application/json" -d '{"type":"payment","data":{"id":"fake-$(ORDER)"}}'
+
 .PHONY: sqlc
 sqlc: $(SQLC) ## Regenera internal/store desde db/queries
 	$(SQLC) generate

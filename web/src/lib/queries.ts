@@ -56,3 +56,20 @@ export const dashboardQuery = (userId: string | null) =>
     enabled: !!userId,
     staleTime: 30_000,
   })
+
+import type { Order } from '@/types/billing'
+
+export const orderQuery = (id: string, userId: string | null) =>
+  queryOptions({
+    queryKey: ['orders', id, userId],
+    queryFn: () => api<Order>(`/orders/${id}`),
+    enabled: !!userId,
+    retry: false,
+  })
+
+export const myOrdersQuery = (userId: string | null) =>
+  queryOptions({
+    queryKey: ['orders', 'mine', userId],
+    queryFn: () => api<Order[]>('/me/orders'),
+    enabled: !!userId,
+  })

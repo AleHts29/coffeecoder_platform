@@ -9,7 +9,45 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const approveOrder = `-- name: ApproveOrder :one
+UPDATE orders
+SET status = 'approved', provider_payment_id = $3
+WHERE id = $1 AND provider = $2 AND status = 'pending'
+RETURNING id, user_id, product_type, product_id, amount_cents, currency, provider, provider_payment_id, status, created_at, updated_at
+`
+
+type ApproveOrderParams struct {
+	ID                uuid.UUID `json:"id"`
+	Provider          string    `json:"provider"`
+	ProviderPaymentID *string   `json:"provider_payment_id"`
+}
+
+// Punto de idempotencia para providers que informan el pago recién en
+// el webhook (Checkout Pro): la orden se ubica por external_reference
+// (= id de la orden) y solo transiciona si sigue pending. El índice
+// único (provider, provider_payment_id) impide que un mismo pago
+// apruebe dos órdenes.
+func (q *Queries) ApproveOrder(ctx context.Context, arg ApproveOrderParams) (Order, error) {
+	row := q.db.QueryRow(ctx, approveOrder, arg.ID, arg.Provider, arg.ProviderPaymentID)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ProductType,
+		&i.ProductID,
+		&i.AmountCents,
+		&i.Currency,
+		&i.Provider,
+		&i.ProviderPaymentID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const approveOrderByProviderPayment = `-- name: ApproveOrderByProviderPayment :one
 UPDATE orders
@@ -119,6 +157,71 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 	return i, err
 }
 
+const getCareer = `-- name: GetCareer :one
+SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM careers WHERE id = $1
+`
+
+func (q *Queries) GetCareer(ctx context.Context, id uuid.UUID) (Career, error) {
+	row := q.db.QueryRow(ctx, getCareer, id)
+	var i Career
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.Subtitle,
+		&i.Description,
+		&i.Level,
+		&i.PriceCents,
+		&i.Status,
+		&i.Position,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCourse = `-- name: GetCourse :one
+SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM courses WHERE id = $1
+`
+
+func (q *Queries) GetCourse(ctx context.Context, id uuid.UUID) (Course, error) {
+	row := q.db.QueryRow(ctx, getCourse, id)
+	var i Course
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Title,
+		&i.Subtitle,
+		&i.Description,
+		&i.Level,
+		&i.PriceCents,
+		&i.Status,
+		&i.Position,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getEnrollmentByOrder = `-- name: GetEnrollmentByOrder :one
+SELECT id, user_id, scope, scope_id, order_id, activated_at, revoked_at FROM enrollments WHERE order_id = $1
+`
+
+func (q *Queries) GetEnrollmentByOrder(ctx context.Context, orderID pgtype.UUID) (Enrollment, error) {
+	row := q.db.QueryRow(ctx, getEnrollmentByOrder, orderID)
+	var i Enrollment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Scope,
+		&i.ScopeID,
+		&i.OrderID,
+		&i.ActivatedAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const getOrder = `-- name: GetOrder :one
 SELECT id, user_id, product_type, product_id, amount_cents, currency, provider, provider_payment_id, status, created_at, updated_at FROM orders WHERE id = $1
 `
@@ -140,6 +243,132 @@ func (q *Queries) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getPendingOrder = `-- name: GetPendingOrder :one
+SELECT id, user_id, product_type, product_id, amount_cents, currency, provider, provider_payment_id, status, created_at, updated_at FROM orders
+WHERE user_id = $1 AND product_type = $2 AND product_id = $3
+  AND status = 'pending' AND created_at > now() - interval '24 hours'
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetPendingOrderParams struct {
+	UserID      uuid.UUID `json:"user_id"`
+	ProductType string    `json:"product_type"`
+	ProductID   uuid.UUID `json:"product_id"`
+}
+
+// Orden pending reciente del mismo usuario y producto: se reutiliza en
+// vez de crear una nueva por cada clic en "Pagar".
+func (q *Queries) GetPendingOrder(ctx context.Context, arg GetPendingOrderParams) (Order, error) {
+	row := q.db.QueryRow(ctx, getPendingOrder, arg.UserID, arg.ProductType, arg.ProductID)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ProductType,
+		&i.ProductID,
+		&i.AmountCents,
+		&i.Currency,
+		&i.Provider,
+		&i.ProviderPaymentID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const hasCareerAccess = `-- name: HasCareerAccess :one
+SELECT EXISTS (
+  SELECT 1 FROM enrollments e
+  WHERE e.user_id = $1 AND e.scope = 'career' AND e.scope_id = $2 AND e.revoked_at IS NULL
+) AS has_access
+`
+
+type HasCareerAccessParams struct {
+	UserID  uuid.UUID `json:"user_id"`
+	ScopeID uuid.UUID `json:"scope_id"`
+}
+
+func (q *Queries) HasCareerAccess(ctx context.Context, arg HasCareerAccessParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasCareerAccess, arg.UserID, arg.ScopeID)
+	var has_access bool
+	err := row.Scan(&has_access)
+	return has_access, err
+}
+
+const listOrders = `-- name: ListOrders :many
+SELECT
+  o.id, o.user_id, o.product_type, o.product_id, o.amount_cents, o.currency, o.provider, o.provider_payment_id, o.status, o.created_at, o.updated_at,
+  u.email AS user_email,
+  u.name  AS user_name,
+  COALESCE(c.title, k.title, '') AS product_title
+FROM orders o
+JOIN users u ON u.id = o.user_id
+LEFT JOIN courses c ON o.product_type = 'course' AND c.id = o.product_id
+LEFT JOIN careers k ON o.product_type = 'career' AND k.id = o.product_id
+ORDER BY o.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListOrdersParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListOrdersRow struct {
+	ID                uuid.UUID          `json:"id"`
+	UserID            uuid.UUID          `json:"user_id"`
+	ProductType       string             `json:"product_type"`
+	ProductID         uuid.UUID          `json:"product_id"`
+	AmountCents       int32              `json:"amount_cents"`
+	Currency          string             `json:"currency"`
+	Provider          string             `json:"provider"`
+	ProviderPaymentID *string            `json:"provider_payment_id"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	UserEmail         string             `json:"user_email"`
+	UserName          string             `json:"user_name"`
+	ProductTitle      string             `json:"product_title"`
+}
+
+// Admin: últimas órdenes con comprador y producto.
+func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]ListOrdersRow, error) {
+	rows, err := q.db.Query(ctx, listOrders, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrdersRow
+	for rows.Next() {
+		var i ListOrdersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ProductType,
+			&i.ProductID,
+			&i.AmountCents,
+			&i.Currency,
+			&i.Provider,
+			&i.ProviderPaymentID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.UserEmail,
+			&i.UserName,
+			&i.ProductTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listUserOrders = `-- name: ListUserOrders :many
@@ -178,4 +407,124 @@ func (q *Queries) ListUserOrders(ctx context.Context, userID uuid.UUID) ([]Order
 		return nil, err
 	}
 	return items, nil
+}
+
+const listUserOrdersWithProduct = `-- name: ListUserOrdersWithProduct :many
+SELECT
+  o.id, o.user_id, o.product_type, o.product_id, o.amount_cents, o.currency, o.provider, o.provider_payment_id, o.status, o.created_at, o.updated_at,
+  COALESCE(c.title, k.title, '') AS product_title,
+  COALESCE(c.slug, k.slug, '')   AS product_slug
+FROM orders o
+LEFT JOIN courses c ON o.product_type = 'course' AND c.id = o.product_id
+LEFT JOIN careers k ON o.product_type = 'career' AND k.id = o.product_id
+WHERE o.user_id = $1
+ORDER BY o.created_at DESC
+`
+
+type ListUserOrdersWithProductRow struct {
+	ID                uuid.UUID          `json:"id"`
+	UserID            uuid.UUID          `json:"user_id"`
+	ProductType       string             `json:"product_type"`
+	ProductID         uuid.UUID          `json:"product_id"`
+	AmountCents       int32              `json:"amount_cents"`
+	Currency          string             `json:"currency"`
+	Provider          string             `json:"provider"`
+	ProviderPaymentID *string            `json:"provider_payment_id"`
+	Status            string             `json:"status"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ProductTitle      string             `json:"product_title"`
+	ProductSlug       string             `json:"product_slug"`
+}
+
+func (q *Queries) ListUserOrdersWithProduct(ctx context.Context, userID uuid.UUID) ([]ListUserOrdersWithProductRow, error) {
+	rows, err := q.db.Query(ctx, listUserOrdersWithProduct, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserOrdersWithProductRow
+	for rows.Next() {
+		var i ListUserOrdersWithProductRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ProductType,
+			&i.ProductID,
+			&i.AmountCents,
+			&i.Currency,
+			&i.Provider,
+			&i.ProviderPaymentID,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProductTitle,
+			&i.ProductSlug,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const refundOrder = `-- name: RefundOrder :one
+UPDATE orders
+SET status = 'refunded'
+WHERE id = $1 AND status = 'approved'
+RETURNING id, user_id, product_type, product_id, amount_cents, currency, provider, provider_payment_id, status, created_at, updated_at
+`
+
+func (q *Queries) RefundOrder(ctx context.Context, id uuid.UUID) (Order, error) {
+	row := q.db.QueryRow(ctx, refundOrder, id)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ProductType,
+		&i.ProductID,
+		&i.AmountCents,
+		&i.Currency,
+		&i.Provider,
+		&i.ProviderPaymentID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const rejectOrder = `-- name: RejectOrder :one
+UPDATE orders
+SET status = 'rejected', provider_payment_id = COALESCE($3, provider_payment_id)
+WHERE id = $1 AND provider = $2 AND status = 'pending'
+RETURNING id, user_id, product_type, product_id, amount_cents, currency, provider, provider_payment_id, status, created_at, updated_at
+`
+
+type RejectOrderParams struct {
+	ID                uuid.UUID `json:"id"`
+	Provider          string    `json:"provider"`
+	ProviderPaymentID *string   `json:"provider_payment_id"`
+}
+
+func (q *Queries) RejectOrder(ctx context.Context, arg RejectOrderParams) (Order, error) {
+	row := q.db.QueryRow(ctx, rejectOrder, arg.ID, arg.Provider, arg.ProviderPaymentID)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ProductType,
+		&i.ProductID,
+		&i.AmountCents,
+		&i.Currency,
+		&i.Provider,
+		&i.ProviderPaymentID,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
