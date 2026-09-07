@@ -57,6 +57,17 @@ export function Layout() {
                       Mi cuenta
                     </Link>
                   </li>
+                  {user.role === 'admin' && (
+                    <li>
+                      <Link
+                        to="/admin/contenido"
+                        className="inline-flex h-11 items-center rounded-control px-3 font-mono text-xs text-accent transition-colors duration-150 hover:bg-surface-2"
+                        activeProps={{ 'aria-current': 'page' }}
+                      >
+                        admin
+                      </Link>
+                    </li>
+                  )}
                   <li>
                     <Button variant="ghost" onClick={() => void logout()}>
                       Salir

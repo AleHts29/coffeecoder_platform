@@ -5,6 +5,7 @@ import {
   createRouter,
   lazyRouteComponent,
   notFound,
+  redirect,
   useRouter,
   type ErrorComponentProps,
 } from '@tanstack/react-router'
@@ -24,6 +25,7 @@ import { AuthCallback } from '@/pages/AuthCallback'
 import { Dashboard } from '@/pages/Dashboard'
 import { CheckoutResult, type ResultSearch } from '@/pages/CheckoutResult'
 import { Account } from '@/pages/Account'
+import { AdminLayout } from '@/components/AdminLayout'
 
 // Router code-based (sin plugin de generación): las rutas tipadas viven acá.
 // Los loaders precargan en el QueryClient; las páginas leen con
@@ -202,7 +204,60 @@ const playerRoute = createRoute({
   },
 })
 
+// Admin: chunk propio (tus-js-client); las páginas se resuelven perezosamente.
+const adminLazy = <K extends 'AdminContent' | 'CourseEditor' | 'CareerEditor' | 'AdminSales' | 'AdminStudents' | 'AdminStudent'>(name: K) =>
+  lazyRouteComponent(() => import('@/pages/admin'), name)
+
+const adminRoute = createRoute({ getParentRoute: () => rootRoute, path: '/admin', component: AdminLayout })
+const adminIndexRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/',
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/contenido' })
+  },
+})
+const adminContentRoute = createRoute({ getParentRoute: () => adminRoute, path: '/contenido', component: adminLazy('AdminContent') })
+const AdminCourseEditor = adminLazy('CourseEditor')
+const adminCourseRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/cursos/$id',
+  component: function AdminCourseRoute() {
+    const { id } = adminCourseRoute.useParams()
+    return <AdminCourseEditor id={id} />
+  },
+})
+const AdminCareerEditor = adminLazy('CareerEditor')
+const adminCareerRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/carreras/$id',
+  component: function AdminCareerRoute() {
+    const { id } = adminCareerRoute.useParams()
+    return <AdminCareerEditor id={id} />
+  },
+})
+const adminSalesRoute = createRoute({ getParentRoute: () => adminRoute, path: '/ventas', component: adminLazy('AdminSales') })
+const AdminStudentsPage = adminLazy('AdminStudents')
+const adminStudentsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/alumnos',
+  validateSearch: (s: Record<string, unknown>): { q: string } => ({ q: typeof s.q === 'string' ? s.q : '' }),
+  component: function AdminStudentsRoute() {
+    const { q } = adminStudentsRoute.useSearch()
+    return <AdminStudentsPage q={q} />
+  },
+})
+const AdminStudentPage = adminLazy('AdminStudent')
+const adminStudentRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/alumnos/$id',
+  component: function AdminStudentRoute() {
+    const { id } = adminStudentRoute.useParams()
+    return <AdminStudentPage id={id} />
+  },
+})
+
 const routeTree = rootRoute.addChildren([
+  adminRoute.addChildren([adminIndexRoute, adminContentRoute, adminCourseRoute, adminCareerRoute, adminSalesRoute, adminStudentsRoute, adminStudentRoute]),
   indexRoute,
   catalogRoute,
   careerRoute,

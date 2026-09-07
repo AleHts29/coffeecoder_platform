@@ -13,6 +13,7 @@ import (
 	"github.com/alejandro/coffeecoder/internal/billing"
 	"github.com/alejandro/coffeecoder/internal/catalog"
 	"github.com/alejandro/coffeecoder/internal/config"
+	"github.com/alejandro/coffeecoder/internal/enrollment"
 	"github.com/alejandro/coffeecoder/internal/mail"
 	"github.com/alejandro/coffeecoder/internal/media"
 	"github.com/alejandro/coffeecoder/internal/progress"
@@ -41,6 +42,8 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 		authSvc := auth.NewService(cfg, q)
 		authHandler := auth.NewHandler(cfg, authSvc, mailer, logger)
 		catalogHandler := catalog.NewHandler(catalog.NewService(q), logger)
+		catalogAdmin := catalog.NewAdminHandler(catalog.NewAdminService(q, pool), logger)
+		enrollmentAdmin := enrollment.NewHandler(enrollment.NewService(q), logger)
 		mediaSvc := media.NewService(q, newVideoProvider(cfg), cfg.Video.PlaybackTTL, logger)
 		mediaHandler := media.NewHandler(mediaSvc, cfg.Bunny.WebhookSecret, logger)
 		progressHandler := progress.NewHandler(progress.NewService(q, logger), logger)
@@ -74,10 +77,8 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 		r.Group(func(r chi.Router) {
 			r.Use(auth.Middleware(cfg.JWTSecret), auth.RequireRole("admin"))
 			r.Route("/admin", func(r chi.Router) {
-				r.Post("/careers", todo)
-				r.Post("/courses", todo)
-				r.Post("/courses/{id}/modules", todo)
-				r.Post("/modules/{id}/lessons", todo)
+				catalogAdmin.Mount(r)        // CRUD carreras/cursos/módulos/lecciones + orden
+				enrollmentAdmin.Mount(r)     // /students, alta y baja de enrollments
 				mediaHandler.MountAdmin(r)   // /lessons/{id}/video, /video/sync
 				billingHandler.MountAdmin(r) // /orders, /orders/{id}/refund
 			})

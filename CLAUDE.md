@@ -45,6 +45,13 @@ funcional completa está en `docs/SPEC.md` y el design system en
   admin) e `internal/mail` (Resend + log). Probado con el fake; con
   credenciales reales falta la compra en sandbox de MP. Los tests
   cubren N webhooks = 1 enrollment y carrera = todos sus cursos.
+- P7 (admin) implementado: CRUD de contenido con reordenamiento
+  transaccional (`catalog/admin_service.go`), alumnos y enrollments
+  manuales (`internal/enrollment`), pantallas en `web/src/pages/admin`.
+  Probado por API (curso desde cero, reorden, publicación, alta y baja
+  de acceso) y con capturas de las cuatro pantallas.
+- Pendiente para P8: header en mobile (los links de sesión desbordan),
+  sidebar del player como bottom sheet, OG por curso/carrera.
 - Migraciones: `make migrate` es idempotente vía `schema_migrations`
   (la tabla la crea el Makefile / testutil, no una migración).
 - Tests de integración: `make test` (usa `coffeecoder_test`, ver

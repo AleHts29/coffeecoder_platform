@@ -147,6 +147,25 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
 - Frontend: `/checkout` (resumen + único botón), `/checkout/resultado`
   (polling de la orden hasta salir de pending), `/cuenta` (perfil y compras).
 
+## Admin (P7)
+
+- Contenido: `internal/catalog` (`admin_service.go`) con CRUD de carreras,
+  cursos, módulos y lecciones. Reordenar recibe la lista completa de ids y
+  la aplica en una transacción (las UNIQUE de posición son DEFERRABLE).
+  El camino de una carrera se reemplaza entero (`PUT /admin/careers/{id}/courses`).
+  Slug derivado del título si va vacío; 409 si está en uso o si se intenta
+  borrar un curso que forma parte de una carrera.
+- Alumnos: `internal/enrollment` — búsqueda, detalle con accesos, alta manual
+  (`POST /admin/students/{id}/enrollments`, sin orden) y revocación.
+- Ventas: `GET /admin/orders` + reembolso (P6).
+- Video: el editor de curso sube por TUS (`tus-js-client`) con el ticket
+  firmado y consulta el estado cada 5 s hasta `ready`/`failed`.
+- UI en `/admin/*` (chunk propio, guard por rol): contenido, editor de
+  curso, editor de carrera, ventas, alumnos. Los botones destructivos
+  viven solo acá; la confirmación es un `<dialog>` con el rojo relleno.
+- Tests: `testutil.Savepoint` para provocar errores de Postgres esperados
+  sin abortar la transacción del test.
+
 ## Tests
 
 `make test` crea `coffeecoder_test`, aplica migraciones y seed una vez, y
@@ -155,5 +174,5 @@ corre cada test de integración dentro de una transacción que se revierte
 
 ## Plan de implementación
 
-P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ → P5 progreso ✓ → P6 pagos ✓ →
+P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ → P5 progreso ✓ → P6 pagos ✓ → P7 admin ✓ →
 P5 progreso → P6 pagos → P7 admin → P8 pulido UX.

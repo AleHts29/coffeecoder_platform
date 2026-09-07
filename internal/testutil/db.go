@@ -96,3 +96,17 @@ func repoRoot() string {
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "..", "..")
 }
+
+// Savepoint corre fn en una transacción anidada que siempre se revierte.
+// Sirve para provocar errores de Postgres esperados (unique, FK) sin
+// abortar la transacción del test.
+func Savepoint(t *testing.T, tx pgx.Tx, fn func(q *store.Queries)) {
+	t.Helper()
+	ctx := context.Background()
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		t.Fatalf("savepoint: %v", err)
+	}
+	defer func() { _ = sp.Rollback(ctx) }()
+	fn(store.New(sp))
+}
