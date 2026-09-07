@@ -50,8 +50,13 @@ funcional completa está en `docs/SPEC.md` y el design system en
   manuales (`internal/enrollment`), pantallas en `web/src/pages/admin`.
   Probado por API (curso desde cero, reorden, publicación, alta y baja
   de acceso) y con capturas de las cuatro pantallas.
-- Pendiente para P8: header en mobile (los links de sesión desbordan),
-  sidebar del player como bottom sheet, OG por curso/carrera.
+- P8 (pulido) implementado: header móvil, bottom sheet del player, OG
+  por producto servido desde el binario (`WEB_DIST`), chunks por ruta,
+  service worker. Revisión contra DESIGN.md hecha pantalla por pantalla;
+  lo único fuera de norma sigue siendo `ink-faint` (ver arriba).
+- **MVP completo (P1–P8) el 2026-09-07.** Pendientes que requieren al
+  dueño: credenciales reales de Bunny, Mercado Pago y Resend; decisión
+  sobre `ink-faint`; un usuario admin real (hoy se promueve por SQL).
 - Migraciones: `make migrate` es idempotente vía `schema_migrations`
   (la tabla la crea el Makefile / testutil, no una migración).
 - Tests de integración: `make test` (usa `coffeecoder_test`, ver

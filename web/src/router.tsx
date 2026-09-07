@@ -18,13 +18,19 @@ import { Landing } from '@/pages/Landing'
 import { Catalog, type CatalogSearch } from '@/pages/Catalog'
 import { Career } from '@/pages/Career'
 import { Course } from '@/pages/Course'
-import { Checkout, type CheckoutSearch } from '@/pages/Checkout'
-import { Login, type LoginSearch } from '@/pages/Login'
-import { Register } from '@/pages/Register'
-import { AuthCallback } from '@/pages/AuthCallback'
-import { Dashboard } from '@/pages/Dashboard'
-import { CheckoutResult, type ResultSearch } from '@/pages/CheckoutResult'
-import { Account } from '@/pages/Account'
+import type { CheckoutSearch } from '@/pages/Checkout'
+import type { LoginSearch } from '@/pages/Login'
+import type { ResultSearch } from '@/pages/CheckoutResult'
+
+// Rutas de alumno y auth: cada una en su chunk. El catálogo (landing,
+// catálogo, carrera, curso) queda en el bundle principal: es la puerta.
+const Checkout = lazyRouteComponent(() => import('@/pages/Checkout'), 'Checkout')
+const CheckoutResult = lazyRouteComponent(() => import('@/pages/CheckoutResult'), 'CheckoutResult')
+const Login = lazyRouteComponent(() => import('@/pages/Login'), 'Login')
+const Register = lazyRouteComponent(() => import('@/pages/Register'), 'Register')
+const AuthCallback = lazyRouteComponent(() => import('@/pages/AuthCallback'), 'AuthCallback')
+const Dashboard = lazyRouteComponent(() => import('@/pages/Dashboard'), 'Dashboard')
+const Account = lazyRouteComponent(() => import('@/pages/Account'), 'Account')
 import { AdminLayout } from '@/components/AdminLayout'
 
 // Router code-based (sin plugin de generación): las rutas tipadas viven acá.

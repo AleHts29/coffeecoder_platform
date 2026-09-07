@@ -166,6 +166,24 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
 - Tests: `testutil.Savepoint` para provocar errores de Postgres esperados
   sin abortar la transacción del test.
 
+## Producción y pulido (P8)
+
+- **Un solo binario**: con `WEB_DIST=web/dist` la API sirve la PWA compilada.
+  Assets con hash → `Cache-Control: immutable`; cualquier otra ruta → `index.html`
+  con `<title>`, `description` y Open Graph inyectados por curso/carrera
+  (`internal/server/web.go`), así los crawlers ven metadatos reales sin SSR.
+  Despliegue: `make web-build && go build ./cmd/api` y `WEB_DIST`, `FRONTEND_URL`
+  y `PUBLIC_BASE_URL` apuntando al mismo dominio.
+- **Code splitting por ruta**: catálogo en el bundle principal (la puerta);
+  player (hls.js), admin (tus) y cada ruta de alumno en chunks propios.
+- **PWA**: `vite-plugin-pwa` con service worker `autoUpdate` que precachea el
+  shell. La API y el video nunca pasan por el SW.
+- **Responsive**: header con menú en móvil; sidebar del player como bottom
+  sheet debajo de `lg`.
+- Sin sesión previa la PWA no llama a `/auth/refresh` (marca `cc.session`
+  en localStorage, sin token): consola limpia para visitantes.
+- Lighthouse móvil sobre el build: catálogo perf 84 / a11y 95 / best practices 100 / SEO 100.
+
 ## Tests
 
 `make test` crea `coffeecoder_test`, aplica migraciones y seed una vez, y
@@ -174,5 +192,5 @@ corre cada test de integración dentro de una transacción que se revierte
 
 ## Plan de implementación
 
-P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ → P5 progreso ✓ → P6 pagos ✓ → P7 admin ✓ →
+P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ → P5 progreso ✓ → P6 pagos ✓ → P7 admin ✓ → P8 pulido ✓
 P5 progreso → P6 pagos → P7 admin → P8 pulido UX.

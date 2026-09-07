@@ -13,7 +13,7 @@ import type { CourseCard } from '@/types/progress'
 // Página de venta principal: hero + card de compra sticky + "El camino".
 export function Career({ slug }: { slug: string }) {
   const { data: career } = useSuspenseQuery(careerQuery(slug))
-  useTitle(career.title)
+  useTitle(career.title, career.subtitle)
   const { user } = useAuth()
   const dashboard = useQuery(dashboardQuery(user?.id ?? null))
   const mine = dashboard.data?.careers.find((c) => c.slug === slug)

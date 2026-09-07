@@ -98,3 +98,29 @@ export const FlameIcon = (p: Props) => (
     <path d="M12 12c2 -2.96 0 -7 -1 -8c0 3.038 -1.773 4.741 -3 6c-1.226 1.26 -2 3.24 -2 5a6 6 0 1 0 12 0c0 -1.532 -1.056 -3.94 -2 -5c-1.786 3 -2.791 3 -3 2z" />
   </Icon>
 )
+
+export const MenuIcon = (p: Props) => (
+  <Icon {...p}>
+    <path d="M4 6l16 0" />
+    <path d="M4 12l16 0" />
+    <path d="M4 18l16 0" />
+  </Icon>
+)
+
+export const XIcon = (p: Props) => (
+  <Icon {...p}>
+    <path d="M18 6l-12 12" />
+    <path d="M6 6l12 12" />
+  </Icon>
+)
+
+export const ListIcon = (p: Props) => (
+  <Icon {...p}>
+    <path d="M9 6l11 0" />
+    <path d="M9 12l11 0" />
+    <path d="M9 18l11 0" />
+    <path d="M5 6l0 .01" />
+    <path d="M5 12l0 .01" />
+    <path d="M5 18l0 .01" />
+  </Icon>
+)

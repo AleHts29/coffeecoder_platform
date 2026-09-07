@@ -42,7 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    void resume()
+    // Sin marca de sesión (visitante) no hay nada que retomar. Con cookie
+    // pero sin marca (otro dispositivo, storage borrado) el usuario
+    // vuelve a ingresar: el backend rota igual la sesión al hacerlo.
+    if (session.hasHint() || document.cookie.includes('cc_oauth')) void resume()
+    else setStatus('anonymous')
   }, [resume])
 
   const applyAuth = useCallback(

@@ -13,7 +13,7 @@ import { ArrowRightIcon } from '@/components/icons'
 
 export function Course({ slug }: { slug: string }) {
   const { data: course } = useSuspenseQuery(courseQuery(slug))
-  useTitle(course.title)
+  useTitle(course.title, course.subtitle)
   const career = course.careers[0]
   const { user } = useAuth()
   const progress = useQuery(courseProgressQuery(course.slug, user?.id ?? null))

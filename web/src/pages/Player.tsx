@@ -12,7 +12,7 @@ import { Button, ButtonLink } from '@/components/Button'
 import { VideoPlayer } from '@/components/VideoPlayer'
 import { PlayerSidebar } from '@/components/PlayerSidebar'
 import { ErrorState, Loading, NotFoundState } from '@/components/PageState'
-import { CheckIcon } from '@/components/icons'
+import { CheckIcon, ListIcon, XIcon } from '@/components/icons'
 
 type Props = { slug: string; lessonId: string; autoplay?: boolean }
 
@@ -26,6 +26,7 @@ export function Player({ slug, lessonId, autoplay }: Props) {
   const queryClient = useQueryClient()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [cinema, setCinema] = useState(false)
+  const [sheet, setSheet] = useState(false)
 
   const flat = useMemo(
     () => course.modules.flatMap((m) => m.lessons.map((l) => ({ ...l, module: m }))),
@@ -155,7 +156,43 @@ export function Player({ slug, lessonId, autoplay }: Props) {
         </section>
       </div>
 
-      {!cinema && <PlayerSidebar course={course} activeLessonId={lessonId} progress={progress.data} />}
+      {/* Desktop: sidebar a la derecha. Mobile: bottom sheet. */}
+      {!cinema && (
+        <div className="hidden lg:block">
+          <PlayerSidebar course={course} activeLessonId={lessonId} progress={progress.data} />
+        </div>
+      )}
+      <div className="lg:hidden">
+        <button
+          type="button"
+          onClick={() => setSheet(true)}
+          aria-expanded={sheet}
+          aria-controls="contenido-curso"
+          className="hairline-strong fixed inset-x-4 bottom-4 z-30 flex h-12 items-center justify-between rounded-control bg-surface-1 px-4 text-sm text-ink"
+        >
+          <span className="flex items-center gap-2">
+            <ListIcon size={18} className="text-accent" /> Contenido del curso
+          </span>
+          <span className="font-mono text-xs text-ink-faint">
+            {index + 1}/{flat.length}
+          </span>
+        </button>
+        {sheet && (
+          <div className="fixed inset-0 z-40 flex flex-col justify-end" role="dialog" aria-modal="true" aria-label="Contenido del curso">
+            <button type="button" aria-label="Cerrar" className="absolute inset-0 bg-surface-0/80" onClick={() => setSheet(false)} />
+            <div id="contenido-curso" className="relative max-h-[85dvh] overflow-y-auto rounded-t-card bg-surface-1 pb-4">
+              <div className="sticky top-0 flex items-center justify-between border-b-[0.5px] border-border bg-surface-1 px-4 py-2">
+                <span className="font-mono text-xs text-ink-faint">contenido del curso</span>
+                <Button variant="ghost" className="h-9 w-9 px-0" onClick={() => setSheet(false)} aria-label="Cerrar">
+                  <XIcon size={18} />
+                </Button>
+              </div>
+              <PlayerSidebar course={course} activeLessonId={lessonId} progress={progress.data} />
+            </div>
+          </div>
+        )}
+        <div className="h-16" aria-hidden="true" />
+      </div>
     </div>
   )
 }

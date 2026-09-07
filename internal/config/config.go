@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL   string
 	PublicBaseURL string // URL pública de la API (para callbacks OAuth)
 	FrontendURL   string // URL de la PWA (para redirects post-login)
+	WebDist       string // si está definido, el binario sirve la PWA compilada desde ahí
 
 	JWTSecret       string
 	AccessTokenTTL  time.Duration
@@ -80,6 +81,7 @@ func Load() (Config, error) {
 		DatabaseURL:   os.Getenv("DATABASE_URL"),
 		PublicBaseURL: getenv("PUBLIC_BASE_URL", "http://localhost:8080"),
 		FrontendURL:   getenv("FRONTEND_URL", "http://localhost:5173"),
+		WebDist:       os.Getenv("WEB_DIST"),
 		JWTSecret:     os.Getenv("JWT_SECRET"),
 		OAuth: OAuthConfig{
 			GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),

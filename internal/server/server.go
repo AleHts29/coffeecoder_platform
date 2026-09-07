@@ -23,7 +23,7 @@ import (
 // New arma el router completo. Cada módulo registra sus rutas acá;
 // los handlers concretos viven en internal/<modulo> y se van
 // implementando en P2..P7 según el plan.
-func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handler {
+func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) (http.Handler, error) {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -36,12 +36,14 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 		_, _ = w.Write([]byte("ok"))
 	})
 
+	catalogSvc := catalog.NewService(store.New(pool))
+
 	r.Route("/api/v1", func(r chi.Router) {
 		q := store.New(pool)
 		mailer := mail.New(cfg.Mail, logger)
 		authSvc := auth.NewService(cfg, q)
 		authHandler := auth.NewHandler(cfg, authSvc, mailer, logger)
-		catalogHandler := catalog.NewHandler(catalog.NewService(q), logger)
+		catalogHandler := catalog.NewHandler(catalogSvc, logger)
 		catalogAdmin := catalog.NewAdminHandler(catalog.NewAdminService(q, pool), logger)
 		enrollmentAdmin := enrollment.NewHandler(enrollment.NewService(q), logger)
 		mediaSvc := media.NewService(q, newVideoProvider(cfg), cfg.Video.PlaybackTTL, logger)
@@ -85,7 +87,14 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) http.Handle
 		})
 	})
 
-	return r
+	// PWA compilada (producción): assets + index.html con OG por producto.
+	if cfg.WebDist != "" {
+		if err := mountWeb(r, cfg.WebDist, cfg.FrontendURL, catalogSvc); err != nil {
+			return nil, err
+		}
+	}
+
+	return r, nil
 }
 
 // newVideoProvider elige la implementación según config. El resto del

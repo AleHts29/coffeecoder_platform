@@ -57,7 +57,9 @@ export function Catalog({ tueste }: CatalogSearch) {
         </fieldset>
       </header>
 
-      {nothing ? (
+      {nothing && !tueste ? (
+        <EmptyState title="El primer café se está preparando" message="Todavía no hay contenido publicado. Volvé en unos días." />
+      ) : nothing ? (
         <EmptyState
           title="Nada con ese tueste todavía"
           message="Probá con otro nivel o mirá el catálogo completo."

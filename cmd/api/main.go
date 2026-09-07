@@ -41,9 +41,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	handler, err := server.New(cfg, pool, logger)
+	if err != nil {
+		logger.Error("server", "err", err)
+		os.Exit(1)
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           server.New(cfg, pool, logger),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
