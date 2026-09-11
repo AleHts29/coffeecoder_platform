@@ -142,6 +142,16 @@ web/                React PWA
 - Niveles de dificultad con nomenclatura de tueste: suave / medio /
   intenso (así está en el CHECK de la base).
 
+## Flujo de trabajo con Claude web
+
+Claude web arma los planes; Claude Code los implementa. El puente es
+`docs/ESTADO.md`: **al cerrar cada implementación, actualizarlo** (estado,
+decisiones nuevas, pendientes) **y sincronizarlo a Google Drive**: subir
+una copia nueva a la carpeta "CoffeeCoder" (id `1Qg0NeoNSApWNCtXwRG323ScbDHek3kLI`)
+con el título "CoffeeCoder · Estado del proyecto" y mandar a la papelera la
+versión anterior (el conector no edita contenido, solo crea). Los planes
+pueden llegar pegados en la sesión o como Doc en esa misma carpeta.
+
 ## Flujo de trabajo esperado
 
 Implementar por fases (P1–P8 en `docs/SPEC.md`), cada una con sus
