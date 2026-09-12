@@ -1,8 +1,8 @@
 # CoffeeCoder · Estado del proyecto
 
 > Documento vivo. Lo actualiza Claude Code al cerrar cada implementación y
-> lo sincroniza a Google Drive (carpeta "CoffeeCoder") para que Claude web
-> planifique sobre el estado real. Fuente de verdad: `docs/ESTADO.md` en el repo.
+> lo pushea; Claude web lo lee del repo conectado por GitHub para planificar
+> sobre el estado real.
 > Última actualización: 2026-09-11.
 
 ## Cómo trabajamos
@@ -14,9 +14,7 @@
   y qué no), criterios de aceptación verificables, y decisiones ya tomadas.
   No hace falta detallar archivos: el repo tiene reglas en `CLAUDE.md`,
   especificación en `docs/SPEC.md` y design system en `docs/DESIGN.md`.
-- Para pasarle un plan a Claude Code alcanza con pegarlo en la sesión, o
-  guardarlo como Doc en la carpeta "CoffeeCoder" de Drive y decir "implementá
-  el plan X del Drive".
+- Para pasarle un plan a Claude Code alcanza con pegarlo en la sesión.
 
 ## Producto en una línea
 

@@ -144,13 +144,12 @@ web/                React PWA
 
 ## Flujo de trabajo con Claude web
 
-Claude web arma los planes; Claude Code los implementa. El puente es
-`docs/ESTADO.md`: **al cerrar cada implementación, actualizarlo** (estado,
-decisiones nuevas, pendientes) **y sincronizarlo a Google Drive**: subir
-una copia nueva a la carpeta "CoffeeCoder" (id `1Qg0NeoNSApWNCtXwRG323ScbDHek3kLI`)
-con el título "CoffeeCoder · Estado del proyecto" y mandar a la papelera la
-versión anterior (el conector no edita contenido, solo crea). Los planes
-pueden llegar pegados en la sesión o como Doc en esa misma carpeta.
+Claude web arma los planes leyendo el repo conectado por GitHub (este
+`CLAUDE.md`, `docs/SPEC.md`, `docs/DESIGN.md`, `docs/ESTADO.md`); Claude
+Code los implementa. **Al cerrar cada implementación: actualizar
+`docs/ESTADO.md` (estado, decisiones nuevas, pendientes), commitear y
+pushear**, así Claude web planifica sobre el estado real. Los planes
+llegan pegados en la sesión.
 
 ## Flujo de trabajo esperado
 
