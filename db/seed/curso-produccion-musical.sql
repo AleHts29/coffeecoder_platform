@@ -3138,9 +3138,9 @@ VALUES ('00000000-0000-4000-8000-AB0300000009', '00000000-0000-4000-8000-AB00000
     if (!note) return;
     var ctx = audio.ctx();
     if (ctx) {
-      var p = note.gain.gain, t = ctx.currentTime;
+      var p = note.gain.gain, t = ctx.currentTime, cur = p.value;
       p.cancelScheduledValues(t);
-      p.setValueAtTime(p.value, t);
+      p.setValueAtTime(cur, t);
       p.linearRampToValueAtTime(0, t + 0.01);
       endNote(note, t + 0.05);
     }
@@ -3179,8 +3179,9 @@ VALUES ('00000000-0000-4000-8000-AB0300000009', '00000000-0000-4000-8000-AB00000
     var ctx = audio.ctx();
     if (!ctx) { cutNote(); return; }
     var v = vals(), p = note.gain.gain, t = ctx.currentTime, end;
+    var cur = p.value;
     p.cancelScheduledValues(t);
-    p.setValueAtTime(p.value, t);
+    p.setValueAtTime(cur, t);
     if (mode === 'ads-ar') {
       var ta = t + Math.max(v.a / 1000, MINR);
       p.linearRampToValueAtTime(1, ta);
