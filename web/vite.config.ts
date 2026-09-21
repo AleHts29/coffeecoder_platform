@@ -27,7 +27,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // La API y los archivos subidos (imágenes y adjuntos de artículos)
+      // los sirve el binario; en producción están en el mismo origen.
       '/api': { target: process.env.API_URL ?? 'http://localhost:8081', changeOrigin: true },
+      '/uploads': { target: process.env.API_URL ?? 'http://localhost:8081', changeOrigin: true },
     },
   },
 })

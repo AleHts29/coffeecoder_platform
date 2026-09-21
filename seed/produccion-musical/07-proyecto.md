@@ -1,6 +1,6 @@
 ## Proyecto de clase
 
-[Descargar el proyecto de Ableton](/uploads/2026/09/e5793c3b3cbe7154a1fd80a6db11ded6.zip) (18 MB, .zip)
+[Descargar el proyecto de Ableton](/uploads/2026/09/99d23eb67c3c39b4e8e35d70b9b7c5f8.zip) (18 MB, .zip)
 
 Trabajá sobre las **escenas marcadas en
 amarillo**: ya tienen una base rítmica y clips de audio armados.
