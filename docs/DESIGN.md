@@ -116,6 +116,15 @@ Estados vacíos con invitación a actuar, no con lamento. Los momentos
 de marca (bienvenida, curso completado) pueden usar guiños de café
 con sobriedad — un guiño por pantalla como máximo.
 
+## Categorías
+
+El catálogo agrupa por categoría (Programación, Producción musical, …).
+En las cards, el nombre de la categoría va en mono `ink-faint` al lado
+del badge de tueste, sin recuadro: es un dato, no una etiqueta que
+compita. El filtro de categoría usa las mismas pills que el de tueste y
+va arriba de él; solo aparece cuando hay más de una categoría con
+contenido publicado.
+
 ## Lector y demos
 
 Una lección puede ser de **lectura** en vez de video (ver

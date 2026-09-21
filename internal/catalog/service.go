@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/alejandro/coffeecoder/internal/store"
 )
@@ -24,6 +25,13 @@ func NewService(q *store.Queries) *Service {
 	return &Service{q: q}
 }
 
+// Category es el dominio al que pertenece un producto (programación,
+// producción musical, …). Puede faltar: es nullable en la base.
+type Category struct {
+	Slug string
+	Name string
+}
+
 // Stats son los agregados de currícula de un curso.
 type Stats struct {
 	LessonCount int32
@@ -34,6 +42,7 @@ type Stats struct {
 type CourseSummary struct {
 	store.Course
 	Stats
+	Category *Category
 }
 
 // CareerSummary es una carrera con los agregados de sus cursos publicados.
@@ -41,6 +50,7 @@ type CareerSummary struct {
 	store.Career
 	CourseCount int32
 	Stats
+	Category *Category
 }
 
 // CareerDetail es la página de venta: carrera + "el camino".
@@ -73,6 +83,10 @@ func (s *Service) ListCareers(ctx context.Context) ([]CareerSummary, error) {
 	if err != nil {
 		return nil, err
 	}
+	cats, err := s.categories(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	out := make([]CareerSummary, 0, len(careers))
 	for _, c := range careers {
@@ -80,9 +94,39 @@ func (s *Service) ListCareers(ctx context.Context) ([]CareerSummary, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, summarizeCareer(c, courses))
+		sum := summarizeCareer(c, courses)
+		sum.Category = cats[c.CategoryID]
+		out = append(out, sum)
 	}
 	return out, nil
+}
+
+// Categories devuelve las categorías del catálogo, en orden.
+func (s *Service) Categories(ctx context.Context) ([]Category, error) {
+	rows, err := s.q.ListCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Category, 0, len(rows))
+	for _, c := range rows {
+		out = append(out, Category{Slug: c.Slug, Name: c.Name})
+	}
+	return out, nil
+}
+
+// categories indexa por id para adjuntar la categoría a cada producto
+// sin sumar un JOIN a cada query del catálogo (la tabla es chica).
+func (s *Service) categories(ctx context.Context) (map[pgtype.UUID]*Category, error) {
+	rows, err := s.q.ListCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[pgtype.UUID]*Category, len(rows))
+	for _, c := range rows {
+		cat := Category{Slug: c.Slug, Name: c.Name}
+		m[pgtype.UUID{Bytes: c.ID, Valid: true}] = &cat
+	}
+	return m, nil
 }
 
 func (s *Service) GetCareer(ctx context.Context, slug string) (CareerDetail, error) {
@@ -101,10 +145,13 @@ func (s *Service) GetCareer(ctx context.Context, slug string) (CareerDetail, err
 	if err != nil {
 		return CareerDetail{}, err
 	}
-	return CareerDetail{
-		CareerSummary: summarizeCareer(career, courses),
-		Courses:       courses,
-	}, nil
+	cats, err := s.categories(ctx)
+	if err != nil {
+		return CareerDetail{}, err
+	}
+	sum := summarizeCareer(career, courses)
+	sum.Category = cats[career.CategoryID]
+	return CareerDetail{CareerSummary: sum, Courses: courses}, nil
 }
 
 func (s *Service) ListCourses(ctx context.Context) ([]CourseSummary, error) {
@@ -116,9 +163,13 @@ func (s *Service) ListCourses(ctx context.Context) ([]CourseSummary, error) {
 	if err != nil {
 		return nil, err
 	}
+	cats, err := s.categories(ctx)
+	if err != nil {
+		return nil, err
+	}
 	out := make([]CourseSummary, 0, len(courses))
 	for _, c := range courses {
-		out = append(out, CourseSummary{Course: c, Stats: stats[c.ID]})
+		out = append(out, CourseSummary{Course: c, Stats: stats[c.ID], Category: cats[c.CategoryID]})
 	}
 	return out, nil
 }
@@ -140,9 +191,13 @@ func (s *Service) GetCourse(ctx context.Context, slug string) (CourseDetail, err
 		return CourseDetail{}, err
 	}
 
+	cats, err := s.categories(ctx)
+	if err != nil {
+		return CourseDetail{}, err
+	}
 	modules, stats := groupCurriculum(rows)
 	return CourseDetail{
-		CourseSummary: CourseSummary{Course: course, Stats: stats},
+		CourseSummary: CourseSummary{Course: course, Stats: stats, Category: cats[course.CategoryID]},
 		Modules:       modules,
 		Careers:       careers,
 	}, nil

@@ -12,7 +12,10 @@ export function CareerCard({ career }: { career: CareerSummary }) {
   return (
     <Link to="/carreras/$slug" params={{ slug: career.slug }} className={card}>
       <div className="flex items-start justify-between gap-3">
-        <LevelBadge kind="carrera" level={career.level} />
+        <span className="flex flex-wrap items-center gap-2">
+          <LevelBadge kind="carrera" level={career.level} />
+          {career.category && <span className="font-mono text-xs text-ink-faint">{career.category.name}</span>}
+        </span>
         <span className="font-mono text-sm text-ink">{formatPrice(career.price_cents)}</span>
       </div>
       <div className="flex flex-col gap-1">
@@ -38,7 +41,10 @@ export function CourseCard({ course }: { course: CourseSummary }) {
   return (
     <Link to="/cursos/$slug" params={{ slug: course.slug }} className={card}>
       <div className="flex items-start justify-between gap-3">
-        <LevelBadge kind="curso" level={course.level} />
+        <span className="flex flex-wrap items-center gap-2">
+          <LevelBadge kind="curso" level={course.level} />
+          {course.category && <span className="font-mono text-xs text-ink-faint">{course.category.name}</span>}
+        </span>
         <span className="font-mono text-sm text-ink">{formatPrice(course.price_cents)}</span>
       </div>
       <div className="flex flex-col gap-1">

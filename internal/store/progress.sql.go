@@ -181,7 +181,7 @@ func (q *Queries) ListDailyActivitySince(ctx context.Context, arg ListDailyActiv
 }
 
 const listEnrolledCareers = `-- name: ListEnrolledCareers :many
-SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at, c.category_id
 FROM enrollments e
 JOIN careers c ON c.id = e.scope_id
 WHERE e.user_id = $1 AND e.scope = 'career' AND e.revoked_at IS NULL
@@ -210,6 +210,7 @@ func (q *Queries) ListEnrolledCareers(ctx context.Context, userID uuid.UUID) ([]
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CategoryID,
 		); err != nil {
 			return nil, err
 		}
@@ -222,7 +223,7 @@ func (q *Queries) ListEnrolledCareers(ctx context.Context, userID uuid.UUID) ([]
 }
 
 const listEnrolledCourses = `-- name: ListEnrolledCourses :many
-SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at, c.category_id
 FROM enrollments e
 JOIN courses c ON c.id = e.scope_id
 WHERE e.user_id = $1 AND e.scope = 'course' AND e.revoked_at IS NULL
@@ -251,6 +252,7 @@ func (q *Queries) ListEnrolledCourses(ctx context.Context, userID uuid.UUID) ([]
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CategoryID,
 		); err != nil {
 			return nil, err
 		}

@@ -3,7 +3,7 @@
 > Documento vivo. Lo actualiza Claude Code al cerrar cada implementación y
 > lo pushea; Claude web lo lee del repo conectado por GitHub para planificar
 > sobre el estado real.
-> Última actualización: 2026-09-21.
+> Última actualización: 2026-09-21 (categorías + curso de producción musical).
 
 ## Cómo trabajamos
 
@@ -45,6 +45,52 @@ contra sus ocho criterios.
 | P7 Admin | CRUD carreras/cursos/módulos/lecciones con reorden transaccional, camino de carrera, upload TUS con estado, ventas con reembolso, alumnos con alta manual y revocación; UI `/admin/*` | tests + e2e + capturas |
 | P8 Pulido | binario sirve la PWA (`WEB_DIST`) con OG por producto, chunks por ruta, service worker, header móvil, bottom sheet del player | Lighthouse prod: perf 85 / a11y 95 / bp 100 / SEO 100 |
 | Artículos y demos | `lessons.kind` (video/article) + `body_md`; tabla `demos` por curso; `GET /lessons/{id}/content`; frame firmado con CSP sandbox; lector con Markdown + Shiki; editor Markdown con preview, "Insertar demo" y subida de imágenes; biblioteca de demos en el admin | tests + e2e + navegador (a11y 100 en el lector) |
+
+## Categorías de catálogo (2026-09-21)
+
+El catálogo dejó de ser solo backend. Migración `0004_categories`: tabla
+`categories` (slug, nombre, posición) y `category_id` nullable en
+`courses` y `careers`. Dos categorías sembradas: **Programación** (todo
+lo que había) y **Producción musical**.
+
+- `GET /categories` lista las categorías; cada curso y carrera viaja con
+  su `category` en el catálogo público.
+- El catálogo filtra por categoría además de por tueste (`?categoria=`).
+  El filtro solo se muestra cuando hay más de una categoría con contenido
+  publicado, así no estorba mientras haya una sola.
+- El admin asigna la categoría desde el formulario de curso o carrera.
+- **Limitación:** crear o renombrar categorías todavía es por SQL/seed;
+  no hay ABM de categorías en el admin.
+
+## Curso "Producción Musical con Ableton" (2026-09-21)
+
+Primer curso fuera del dominio backend. `slug`
+`produccion-musical-ableton`, tueste medio, **`status = draft`** (no se
+ve en el catálogo; se previsualiza por admin), precio placeholder USD 59,
+categoría Producción musical. Seed en
+`db/seed/curso-produccion-musical.sql`, idempotente, con serie de UUIDs
+propia (`…-AB…`).
+
+- **Estructura: un módulo por unidad** (16 módulos), según
+  `contenido-analog-1-monofonia.md`, que reemplaza la agrupación en 4
+  submódulos del handoff original. Solo el módulo 1 tiene lecciones; los
+  otros 15 están creados vacíos como hoja de ruta (un módulo sin
+  lecciones no se publica, así que no afecta al alumno).
+- **Módulo 1 · "Analog 1: Monofonía"**, 8 lecciones: 3 videos (sin video
+  subido todavía, con la duración del curso original) y 5 artículos con
+  el contenido real del dueño. Muestras gratis: Video 1 (el enganche) e
+  "Introducción a la Síntesis" (por su demo tocable).
+- **Tres demos nuevas** en la biblioteca del curso: `formas-de-onda`
+  (onda ↔ espectro, reconstrucción por Fourier), `envolvente-adsr`
+  (gate con bolita recorriendo la envolvente) y `cuestionario-analog-1`
+  (4 preguntas con feedback, sin persistencia: reemplaza al módulo de
+  quizzes, que está fuera del MVP). Las tres pasan `docs/DEMOS.md`.
+- Las fuentes editables están en `seed/produccion-musical/*.md` y
+  `seed/demos/*.html`; el `.sql` se regenera desde ahí.
+- **Pendiente del dueño:** subir los tres videos, definir el precio
+  final, decidir si va en alguna carrera, y el contenido de los módulos
+  2 a 16. El `.zip` del proyecto de clase queda anotado como
+  `<!-- PENDIENTE -->` porque la plataforma no tiene adjuntos.
 
 ## Lecciones de lectura y demos (2026-09-21)
 
@@ -107,6 +153,10 @@ Errores siempre `{ "error": "mensaje en español" }`.
 - Mermaid no se usa: cualquier diagrama se hace como demo.
 - La lección de lectura del seed vive en "Go desde cero" (módulo
   "Errores y concurrencia"): el seed no tiene un curso de Concurrencia.
+- Las categorías son de catálogo, no de permisos: no cambian acceso ni
+  precio, solo agrupan y filtran.
+- El curso de música usa un módulo por unidad del curso original, no
+  submódulos temáticos.
 
 ## Pendientes que dependen del dueño
 

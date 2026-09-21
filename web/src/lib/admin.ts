@@ -17,6 +17,8 @@ export const adminCourseQuery = (id: string) => queryOptions({ queryKey: ['admin
 export const adminCareerQuery = (id: string) => queryOptions({ queryKey: ['admin', 'careers', id], queryFn: () => api<AdminCareerDetail>(`/admin/careers/${id}`) })
 export const adminOrdersQuery = () => queryOptions({ queryKey: ['admin', 'orders'], queryFn: () => api<AdminOrder[]>('/admin/orders?limit=200') })
 export const adminStudentsQuery = (q: string) => queryOptions({ queryKey: ['admin', 'students', q], queryFn: () => api<Student[]>(`/admin/students?q=${encodeURIComponent(q)}&limit=100`) })
+export const adminCategoriesQuery = () =>
+  queryOptions({ queryKey: ['admin', 'categories'], queryFn: () => api<{ slug: string; name: string }[]>('/admin/categories'), staleTime: 10 * 60_000 })
 export const adminDemosQuery = (courseId: string) =>
   queryOptions({ queryKey: ['admin', 'demos', courseId], queryFn: () => api<AdminDemo[]>(`/admin/courses/${courseId}/demos`) })
 export const adminStudentQuery = (id: string) => queryOptions({ queryKey: ['admin', 'students', 'detail', id], queryFn: () => api<StudentDetail>(`/admin/students/${id}`) })

@@ -80,7 +80,7 @@ func prepare(url string) error {
 			return err
 		}
 	}
-	for _, f := range []string{"dev.sql", "articles.sql"} {
+	for _, f := range []string{"dev.sql", "articles.sql", "curso-produccion-musical.sql"} {
 		if err := execFile(ctx, filepath.Join(root, "db", "seed", f)); err != nil {
 			return err
 		}

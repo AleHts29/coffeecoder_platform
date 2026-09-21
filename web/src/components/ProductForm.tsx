@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { adminCategoriesQuery } from '@/lib/admin'
 import { Button } from './Button'
 import { Field } from './Field'
 import { LEVELS } from '@/types/catalog'
@@ -23,6 +25,8 @@ type Props = {
 export function ProductForm({ initial, submitLabel, busy, error, onSubmit, onCancel }: Props) {
   const [status, setStatus] = useState<ProductStatus>(initial?.status ?? 'draft')
   const [level, setLevel] = useState(initial?.level ?? 'medio')
+  const [category, setCategory] = useState(initial?.category ?? '')
+  const categories = useQuery(adminCategoriesQuery())
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -34,6 +38,7 @@ export function ProductForm({ initial, submitLabel, busy, error, onSubmit, onCan
       description: String(f.get('description')),
       level,
       status,
+      category,
       price_cents: Math.round(Number(f.get('price')) * 100),
     })
   }
@@ -53,6 +58,17 @@ export function ProductForm({ initial, submitLabel, busy, error, onSubmit, onCan
           rows={5}
           className="hairline-strong rounded-control bg-surface-0 px-3 py-2 text-ink focus:border-accent"
         />
+      </label>
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="text-ink-soft">Categoría</span>
+        <select value={category} onChange={(e) => setCategory(e.target.value)} className={select}>
+          <option value="">sin categoría</option>
+          {(categories.data ?? []).map((c) => (
+            <option key={c.slug} value={c.slug}>
+              {c.name}
+            </option>
+          ))}
+        </select>
       </label>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Precio (USD)" name="price" type="number" min={0} step="1" defaultValue={initial ? String((initial.price_cents ?? 0) / 100) : ''} className="font-mono text-xs" required />

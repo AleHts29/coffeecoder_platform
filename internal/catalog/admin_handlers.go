@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/alejandro/coffeecoder/internal/httpx"
 	"github.com/alejandro/coffeecoder/internal/store"
@@ -25,6 +26,7 @@ func NewAdminHandler(svc *AdminService, logger *slog.Logger) *AdminHandler {
 
 // Mount va detrás de RequireRole("admin") bajo /admin.
 func (h *AdminHandler) Mount(r chi.Router) {
+	r.Get("/categories", h.listCategories)
 	r.Get("/careers", h.listCareers)
 	r.Post("/careers", h.createCareer)
 	r.Get("/careers/{id}", h.getCareer)
@@ -52,6 +54,7 @@ func (h *AdminHandler) Mount(r chi.Router) {
 // --- DTOs ---
 
 type productInputDTO struct {
+	Category    string `json:"category"`
 	Slug        string `json:"slug"`
 	Title       string `json:"title"`
 	Subtitle    string `json:"subtitle"`
@@ -62,7 +65,7 @@ type productInputDTO struct {
 }
 
 func (d productInputDTO) input() ProductInput {
-	return ProductInput{Slug: d.Slug, Title: d.Title, Subtitle: d.Subtitle, Description: d.Description, Level: d.Level, PriceCents: d.PriceCents, Status: d.Status}
+	return ProductInput{Slug: d.Slug, Title: d.Title, Subtitle: d.Subtitle, Description: d.Description, Level: d.Level, PriceCents: d.PriceCents, Status: d.Status, CategorySlug: d.Category}
 }
 
 type adminProductDTO struct {
@@ -75,17 +78,39 @@ type adminProductDTO struct {
 	PriceCents  int32     `json:"price_cents"`
 	Status      string    `json:"status"`
 	Position    int32     `json:"position"`
+	Category    string    `json:"category"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	CourseCount int32     `json:"course_count,omitempty"`
 	LessonCount int32     `json:"lesson_count,omitempty"`
 }
 
-func careerDTOf(c store.Career, courseCount int32) adminProductDTO {
-	return adminProductDTO{ID: c.ID.String(), Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle, Description: c.Description, Level: c.Level, PriceCents: c.PriceCents, Status: c.Status, Position: c.Position, UpdatedAt: c.UpdatedAt.Time, CourseCount: courseCount}
+func careerDTOf(c store.Career, courseCount int32, cats map[uuid.UUID]string) adminProductDTO {
+	return adminProductDTO{ID: c.ID.String(), Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle, Description: c.Description, Level: c.Level, PriceCents: c.PriceCents, Status: c.Status, Position: c.Position, Category: categorySlug(c.CategoryID, cats), UpdatedAt: c.UpdatedAt.Time, CourseCount: courseCount}
 }
 
-func courseDTOf(c store.Course, lessonCount int32) adminProductDTO {
-	return adminProductDTO{ID: c.ID.String(), Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle, Description: c.Description, Level: c.Level, PriceCents: c.PriceCents, Status: c.Status, Position: c.Position, UpdatedAt: c.UpdatedAt.Time, LessonCount: lessonCount}
+func courseDTOf(c store.Course, lessonCount int32, cats map[uuid.UUID]string) adminProductDTO {
+	return adminProductDTO{ID: c.ID.String(), Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle, Description: c.Description, Level: c.Level, PriceCents: c.PriceCents, Status: c.Status, Position: c.Position, Category: categorySlug(c.CategoryID, cats), UpdatedAt: c.UpdatedAt.Time, LessonCount: lessonCount}
+}
+
+func categorySlug(id pgtype.UUID, cats map[uuid.UUID]string) string {
+	if !id.Valid {
+		return ""
+	}
+	return cats[uuid.UUID(id.Bytes)]
+}
+
+// categoryMap indexa slug por id para los DTOs del admin.
+func (h *AdminHandler) categoryMap(r *http.Request) map[uuid.UUID]string {
+	rows, err := h.svc.Categories(r.Context())
+	if err != nil {
+		h.logger.Error("catalog admin: categorías", "err", err)
+		return map[uuid.UUID]string{}
+	}
+	m := make(map[uuid.UUID]string, len(rows))
+	for _, c := range rows {
+		m[c.ID] = c.Slug
+	}
+	return m
 }
 
 type adminLessonDTO struct {
@@ -140,19 +165,33 @@ func lessonDTOf(l store.Lesson) adminLessonDTO {
 
 // --- handlers: carreras ---
 
+func (h *AdminHandler) listCategories(w http.ResponseWriter, r *http.Request) {
+	cats, err := h.svc.Categories(r.Context())
+	if h.handle(w, "list categories", err) {
+		return
+	}
+	out := make([]map[string]string, 0, len(cats))
+	for _, c := range cats {
+		out = append(out, map[string]string{"slug": c.Slug, "name": c.Name})
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
+
 func (h *AdminHandler) listCareers(w http.ResponseWriter, r *http.Request) {
+	cats := h.categoryMap(r)
 	rows, err := h.svc.ListCareers(r.Context())
 	if h.handle(w, "list careers", err) {
 		return
 	}
 	out := make([]adminProductDTO, 0, len(rows))
 	for _, c := range rows {
-		out = append(out, careerDTOf(store.Career{ID: c.ID, Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle, Description: c.Description, Level: c.Level, PriceCents: c.PriceCents, Status: c.Status, Position: c.Position, UpdatedAt: c.UpdatedAt}, c.CourseCount))
+		out = append(out, careerDTOf(store.Career{ID: c.ID, Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle, Description: c.Description, Level: c.Level, PriceCents: c.PriceCents, Status: c.Status, Position: c.Position, UpdatedAt: c.UpdatedAt}, c.CourseCount, cats))
 	}
 	httpx.JSON(w, http.StatusOK, out)
 }
 
 func (h *AdminHandler) createCareer(w http.ResponseWriter, r *http.Request) {
+	cats := h.categoryMap(r)
 	var in productInputDTO
 	if !decode(w, r, &in) {
 		return
@@ -161,10 +200,11 @@ func (h *AdminHandler) createCareer(w http.ResponseWriter, r *http.Request) {
 	if h.handle(w, "create career", err) {
 		return
 	}
-	httpx.JSON(w, http.StatusCreated, careerDTOf(c, 0))
+	httpx.JSON(w, http.StatusCreated, careerDTOf(c, 0, cats))
 }
 
 func (h *AdminHandler) getCareer(w http.ResponseWriter, r *http.Request) {
+	cats := h.categoryMap(r)
 	id, ok := param(w, r)
 	if !ok {
 		return
@@ -173,14 +213,15 @@ func (h *AdminHandler) getCareer(w http.ResponseWriter, r *http.Request) {
 	if h.handle(w, "get career", err) {
 		return
 	}
-	out := adminCareerDetailDTO{adminProductDTO: careerDTOf(c, int32(len(courses))), Courses: []adminProductDTO{}}
+	out := adminCareerDetailDTO{adminProductDTO: careerDTOf(c, int32(len(courses)), cats), Courses: []adminProductDTO{}}
 	for _, r := range courses {
-		out.Courses = append(out.Courses, courseDTOf(store.Course{ID: r.ID, Slug: r.Slug, Title: r.Title, Subtitle: r.Subtitle, Level: r.Level, PriceCents: r.PriceCents, Status: r.Status, Position: r.CareerPosition, UpdatedAt: r.UpdatedAt}, 0))
+		out.Courses = append(out.Courses, courseDTOf(store.Course{ID: r.ID, Slug: r.Slug, Title: r.Title, Subtitle: r.Subtitle, Level: r.Level, PriceCents: r.PriceCents, Status: r.Status, Position: r.CareerPosition, UpdatedAt: r.UpdatedAt}, 0, cats))
 	}
 	httpx.JSON(w, http.StatusOK, out)
 }
 
 func (h *AdminHandler) updateCareer(w http.ResponseWriter, r *http.Request) {
+	cats := h.categoryMap(r)
 	id, ok := param(w, r)
 	if !ok {
 		return
@@ -193,7 +234,7 @@ func (h *AdminHandler) updateCareer(w http.ResponseWriter, r *http.Request) {
 	if h.handle(w, "update career", err) {
 		return
 	}
-	httpx.JSON(w, http.StatusOK, careerDTOf(c, 0))
+	httpx.JSON(w, http.StatusOK, careerDTOf(c, 0, cats))
 }
 
 func (h *AdminHandler) deleteCareer(w http.ResponseWriter, r *http.Request) {
@@ -225,18 +266,20 @@ func (h *AdminHandler) setCareerCourses(w http.ResponseWriter, r *http.Request) 
 // --- handlers: cursos ---
 
 func (h *AdminHandler) listCourses(w http.ResponseWriter, r *http.Request) {
+	cats := h.categoryMap(r)
 	rows, err := h.svc.ListCourses(r.Context())
 	if h.handle(w, "list courses", err) {
 		return
 	}
 	out := make([]adminProductDTO, 0, len(rows))
 	for _, c := range rows {
-		out = append(out, courseDTOf(store.Course{ID: c.ID, Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle, Description: c.Description, Level: c.Level, PriceCents: c.PriceCents, Status: c.Status, Position: c.Position, UpdatedAt: c.UpdatedAt}, c.LessonCount))
+		out = append(out, courseDTOf(store.Course{ID: c.ID, Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle, Description: c.Description, Level: c.Level, PriceCents: c.PriceCents, Status: c.Status, Position: c.Position, UpdatedAt: c.UpdatedAt}, c.LessonCount, cats))
 	}
 	httpx.JSON(w, http.StatusOK, out)
 }
 
 func (h *AdminHandler) createCourse(w http.ResponseWriter, r *http.Request) {
+	cats := h.categoryMap(r)
 	var in productInputDTO
 	if !decode(w, r, &in) {
 		return
@@ -245,10 +288,11 @@ func (h *AdminHandler) createCourse(w http.ResponseWriter, r *http.Request) {
 	if h.handle(w, "create course", err) {
 		return
 	}
-	httpx.JSON(w, http.StatusCreated, courseDTOf(c, 0))
+	httpx.JSON(w, http.StatusCreated, courseDTOf(c, 0, cats))
 }
 
 func (h *AdminHandler) getCourse(w http.ResponseWriter, r *http.Request) {
+	cats := h.categoryMap(r)
 	id, ok := param(w, r)
 	if !ok {
 		return
@@ -257,7 +301,7 @@ func (h *AdminHandler) getCourse(w http.ResponseWriter, r *http.Request) {
 	if h.handle(w, "get course", err) {
 		return
 	}
-	out := adminCourseDetailDTO{adminProductDTO: courseDTOf(c, 0), Modules: []adminModuleDTO{}}
+	out := adminCourseDetailDTO{adminProductDTO: courseDTOf(c, 0, cats), Modules: []adminModuleDTO{}}
 	for _, m := range modules {
 		md := adminModuleDTO{ID: m.ID.String(), Title: m.Title, Position: m.Position, Lessons: []adminLessonDTO{}}
 		for _, l := range m.Lessons {
@@ -270,6 +314,7 @@ func (h *AdminHandler) getCourse(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AdminHandler) updateCourse(w http.ResponseWriter, r *http.Request) {
+	cats := h.categoryMap(r)
 	id, ok := param(w, r)
 	if !ok {
 		return
@@ -282,7 +327,7 @@ func (h *AdminHandler) updateCourse(w http.ResponseWriter, r *http.Request) {
 	if h.handle(w, "update course", err) {
 		return
 	}
-	httpx.JSON(w, http.StatusOK, courseDTOf(c, 0))
+	httpx.JSON(w, http.StatusOK, courseDTOf(c, 0, cats))
 }
 
 func (h *AdminHandler) deleteCourse(w http.ResponseWriter, r *http.Request) {

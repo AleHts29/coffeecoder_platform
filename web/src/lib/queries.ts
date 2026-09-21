@@ -1,6 +1,9 @@
 import { queryOptions } from '@tanstack/react-query'
 import { api } from './api'
-import type { CareerDetail, CareerSummary, CourseDetail, CourseSummary } from '@/types/catalog'
+import type { CareerDetail, CareerSummary, Category, CourseDetail, CourseSummary } from '@/types/catalog'
+
+export const categoriesQuery = () =>
+  queryOptions({ queryKey: ['categories'], queryFn: () => api<Category[]>('/categories'), staleTime: 10 * 60_000 })
 
 export const careersQuery = () =>
   queryOptions({ queryKey: ['careers'], queryFn: () => api<CareerSummary[]>('/careers') })

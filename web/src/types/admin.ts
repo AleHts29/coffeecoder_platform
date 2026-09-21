@@ -3,6 +3,7 @@ import type { Level } from './catalog'
 export type ProductStatus = 'draft' | 'published' | 'archived'
 
 export interface ProductInput {
+  category: string
   slug: string
   title: string
   subtitle: string

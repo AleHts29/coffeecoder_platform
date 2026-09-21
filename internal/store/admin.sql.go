@@ -85,7 +85,7 @@ func (q *Queries) AdminGetCourseCurriculum(ctx context.Context, courseID uuid.UU
 const adminListCareers = `-- name: AdminListCareers :many
 
 
-SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at, (SELECT count(*) FROM career_courses cc WHERE cc.career_id = c.id)::int AS course_count
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at, c.category_id, (SELECT count(*) FROM career_courses cc WHERE cc.career_id = c.id)::int AS course_count
 FROM careers c
 ORDER BY c.position, c.created_at
 `
@@ -102,6 +102,7 @@ type AdminListCareersRow struct {
 	Position    int32              `json:"position"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	CategoryID  pgtype.UUID        `json:"category_id"`
 	CourseCount int32              `json:"course_count"`
 }
 
@@ -130,6 +131,7 @@ func (q *Queries) AdminListCareers(ctx context.Context) ([]AdminListCareersRow, 
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CategoryID,
 			&i.CourseCount,
 		); err != nil {
 			return nil, err
@@ -144,7 +146,7 @@ func (q *Queries) AdminListCareers(ctx context.Context) ([]AdminListCareersRow, 
 
 const adminListCourses = `-- name: AdminListCourses :many
 
-SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at,
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at, c.category_id,
   (SELECT count(*) FROM modules m JOIN lessons l ON l.module_id = m.id WHERE m.course_id = c.id)::int AS lesson_count
 FROM courses c
 ORDER BY c.position, c.created_at
@@ -162,6 +164,7 @@ type AdminListCoursesRow struct {
 	Position    int32              `json:"position"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	CategoryID  pgtype.UUID        `json:"category_id"`
 	LessonCount int32              `json:"lesson_count"`
 }
 
@@ -189,6 +192,7 @@ func (q *Queries) AdminListCourses(ctx context.Context) ([]AdminListCoursesRow, 
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CategoryID,
 			&i.LessonCount,
 		); err != nil {
 			return nil, err
@@ -312,7 +316,7 @@ func (q *Queries) AdminListUsers(ctx context.Context, arg AdminListUsersParams) 
 const createCareer = `-- name: CreateCareer :one
 INSERT INTO careers (slug, title, subtitle, description, level, price_cents, status, position)
 VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(MAX(position), 0) + 1 FROM careers))
-RETURNING id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at
+RETURNING id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id
 `
 
 type CreateCareerParams struct {
@@ -348,6 +352,7 @@ func (q *Queries) CreateCareer(ctx context.Context, arg CreateCareerParams) (Car
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CategoryID,
 	)
 	return i, err
 }
@@ -355,7 +360,7 @@ func (q *Queries) CreateCareer(ctx context.Context, arg CreateCareerParams) (Car
 const createCourse = `-- name: CreateCourse :one
 INSERT INTO courses (slug, title, subtitle, description, level, price_cents, status, position)
 VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(MAX(position), 0) + 1 FROM courses))
-RETURNING id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at
+RETURNING id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id
 `
 
 type CreateCourseParams struct {
@@ -391,6 +396,7 @@ func (q *Queries) CreateCourse(ctx context.Context, arg CreateCourseParams) (Cou
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CategoryID,
 	)
 	return i, err
 }
@@ -685,7 +691,7 @@ const updateCareer = `-- name: UpdateCareer :one
 UPDATE careers
 SET slug = $2, title = $3, subtitle = $4, description = $5, level = $6, price_cents = $7, status = $8
 WHERE id = $1
-RETURNING id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at
+RETURNING id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id
 `
 
 type UpdateCareerParams struct {
@@ -723,6 +729,7 @@ func (q *Queries) UpdateCareer(ctx context.Context, arg UpdateCareerParams) (Car
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CategoryID,
 	)
 	return i, err
 }
@@ -731,7 +738,7 @@ const updateCourse = `-- name: UpdateCourse :one
 UPDATE courses
 SET slug = $2, title = $3, subtitle = $4, description = $5, level = $6, price_cents = $7, status = $8
 WHERE id = $1
-RETURNING id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at
+RETURNING id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id
 `
 
 type UpdateCourseParams struct {
@@ -769,6 +776,7 @@ func (q *Queries) UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Cou
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CategoryID,
 	)
 	return i, err
 }

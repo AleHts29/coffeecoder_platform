@@ -8,6 +8,11 @@ export function isLevel(v: unknown): v is Level {
   return typeof v === 'string' && (LEVELS as readonly string[]).includes(v)
 }
 
+export interface Category {
+  slug: string
+  name: string
+}
+
 export interface CourseSummary {
   id: string
   slug: string
@@ -19,6 +24,7 @@ export interface CourseSummary {
   position: number
   lesson_count: number
   duration_s: number
+  category: Category | null
 }
 
 export interface CareerSummary {
@@ -33,6 +39,7 @@ export interface CareerSummary {
   course_count: number
   lesson_count: number
   duration_s: number
+  category: Category | null
 }
 
 export interface CareerDetail extends CareerSummary {

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/alejandro/coffeecoder/internal/content"
@@ -41,13 +42,14 @@ func NewAdminService(q *store.Queries, pool *pgxpool.Pool) *AdminService {
 
 // ProductInput es el formulario de curso y carrera (mismos campos).
 type ProductInput struct {
-	Slug        string
-	Title       string
-	Subtitle    string
-	Description string
-	Level       string
-	PriceCents  int32
-	Status      string
+	Slug         string
+	Title        string
+	Subtitle     string
+	Description  string
+	Level        string
+	PriceCents   int32
+	Status       string
+	CategorySlug string // vacío = sin categoría
 }
 
 func (in *ProductInput) normalize() error {
@@ -91,6 +93,26 @@ func Slugify(s string) string {
 	return strings.Trim(s, "-")
 }
 
+// category resuelve el slug a un id, o a NULL si viene vacío.
+func (s *AdminService) category(ctx context.Context, slug string) (pgtype.UUID, error) {
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return pgtype.UUID{}, nil
+	}
+	c, err := s.q.GetCategoryBySlug(ctx, slug)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return pgtype.UUID{}, fmt.Errorf("%w: no existe la categoría %q", ErrInvalid, slug)
+	} else if err != nil {
+		return pgtype.UUID{}, err
+	}
+	return pgtype.UUID{Bytes: c.ID, Valid: true}, nil
+}
+
+// Categories lista las categorías disponibles para el selector del admin.
+func (s *AdminService) Categories(ctx context.Context) ([]store.Category, error) {
+	return s.q.ListCategories(ctx)
+}
+
 // --- Carreras ---
 
 func (s *AdminService) ListCareers(ctx context.Context) ([]store.AdminListCareersRow, error) {
@@ -101,22 +123,44 @@ func (s *AdminService) CreateCareer(ctx context.Context, in ProductInput) (store
 	if err := in.normalize(); err != nil {
 		return store.Career{}, err
 	}
+	cat, err := s.category(ctx, in.CategorySlug)
+	if err != nil {
+		return store.Career{}, err
+	}
 	c, err := s.q.CreateCareer(ctx, store.CreateCareerParams{
 		Slug: in.Slug, Title: in.Title, Subtitle: in.Subtitle, Description: in.Description,
 		Level: in.Level, PriceCents: in.PriceCents, Status: in.Status,
 	})
-	return c, mapErr(err)
+	if err != nil {
+		return store.Career{}, mapErr(err)
+	}
+	if err := s.q.SetCareerCategory(ctx, store.SetCareerCategoryParams{ID: c.ID, CategoryID: cat}); err != nil {
+		return store.Career{}, err
+	}
+	c.CategoryID = cat
+	return c, nil
 }
 
 func (s *AdminService) UpdateCareer(ctx context.Context, id uuid.UUID, in ProductInput) (store.Career, error) {
 	if err := in.normalize(); err != nil {
 		return store.Career{}, err
 	}
+	cat, err := s.category(ctx, in.CategorySlug)
+	if err != nil {
+		return store.Career{}, err
+	}
 	c, err := s.q.UpdateCareer(ctx, store.UpdateCareerParams{
 		ID: id, Slug: in.Slug, Title: in.Title, Subtitle: in.Subtitle, Description: in.Description,
 		Level: in.Level, PriceCents: in.PriceCents, Status: in.Status,
 	})
-	return c, mapErr(err)
+	if err != nil {
+		return store.Career{}, mapErr(err)
+	}
+	if err := s.q.SetCareerCategory(ctx, store.SetCareerCategoryParams{ID: c.ID, CategoryID: cat}); err != nil {
+		return store.Career{}, err
+	}
+	c.CategoryID = cat
+	return c, nil
 }
 
 func (s *AdminService) DeleteCareer(ctx context.Context, id uuid.UUID) error {
@@ -171,22 +215,44 @@ func (s *AdminService) CreateCourse(ctx context.Context, in ProductInput) (store
 	if err := in.normalize(); err != nil {
 		return store.Course{}, err
 	}
+	cat, err := s.category(ctx, in.CategorySlug)
+	if err != nil {
+		return store.Course{}, err
+	}
 	c, err := s.q.CreateCourse(ctx, store.CreateCourseParams{
 		Slug: in.Slug, Title: in.Title, Subtitle: in.Subtitle, Description: in.Description,
 		Level: in.Level, PriceCents: in.PriceCents, Status: in.Status,
 	})
-	return c, mapErr(err)
+	if err != nil {
+		return store.Course{}, mapErr(err)
+	}
+	if err := s.q.SetCourseCategory(ctx, store.SetCourseCategoryParams{ID: c.ID, CategoryID: cat}); err != nil {
+		return store.Course{}, err
+	}
+	c.CategoryID = cat
+	return c, nil
 }
 
 func (s *AdminService) UpdateCourse(ctx context.Context, id uuid.UUID, in ProductInput) (store.Course, error) {
 	if err := in.normalize(); err != nil {
 		return store.Course{}, err
 	}
+	cat, err := s.category(ctx, in.CategorySlug)
+	if err != nil {
+		return store.Course{}, err
+	}
 	c, err := s.q.UpdateCourse(ctx, store.UpdateCourseParams{
 		ID: id, Slug: in.Slug, Title: in.Title, Subtitle: in.Subtitle, Description: in.Description,
 		Level: in.Level, PriceCents: in.PriceCents, Status: in.Status,
 	})
-	return c, mapErr(err)
+	if err != nil {
+		return store.Course{}, mapErr(err)
+	}
+	if err := s.q.SetCourseCategory(ctx, store.SetCourseCategoryParams{ID: c.ID, CategoryID: cat}); err != nil {
+		return store.Course{}, err
+	}
+	c.CategoryID = cat
+	return c, nil
 }
 
 func (s *AdminService) DeleteCourse(ctx context.Context, id uuid.UUID) error {

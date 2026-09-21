@@ -158,7 +158,7 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 }
 
 const getCareer = `-- name: GetCareer :one
-SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM careers WHERE id = $1
+SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id FROM careers WHERE id = $1
 `
 
 func (q *Queries) GetCareer(ctx context.Context, id uuid.UUID) (Career, error) {
@@ -176,12 +176,13 @@ func (q *Queries) GetCareer(ctx context.Context, id uuid.UUID) (Career, error) {
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CategoryID,
 	)
 	return i, err
 }
 
 const getCourse = `-- name: GetCourse :one
-SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM courses WHERE id = $1
+SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id FROM courses WHERE id = $1
 `
 
 func (q *Queries) GetCourse(ctx context.Context, id uuid.UUID) (Course, error) {
@@ -199,6 +200,7 @@ func (q *Queries) GetCourse(ctx context.Context, id uuid.UUID) (Course, error) {
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CategoryID,
 	)
 	return i, err
 }

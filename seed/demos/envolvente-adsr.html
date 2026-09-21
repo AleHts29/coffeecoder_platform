@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Envolvente ADSR</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 12px; background: #1B1B1D; color: #EDEDEB;
+         font-family: 'Space Grotesk', system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 64px 1fr 62px; gap: 10px;
+         align-items: center; margin-bottom: 8px; }
+  .row label { font-size: 13px; color: #9A9A97; }
+  .value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
+           text-align: right; }
+  input[type=range] { accent-color: #E08E33; width: 100%; margin: 0; }
+  input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .gate { display: block; width: 100%; margin: 2px 0 10px; padding: 7px 10px;
+          font-family: inherit; font-size: 13px; font-weight: 500;
+          background: #242426; border: 1px solid #3A3A3C; border-radius: 6px;
+          color: #EDEDEB; cursor: pointer; touch-action: none;
+          -webkit-user-select: none; user-select: none; }
+  .gate.on { background: #E08E33; border-color: #E08E33; color: #141414; }
+  .gate:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  canvas { display: block; width: 100%; }
+  .status { margin: 8px 0 0; font-size: 12px; color: #9A9A97; }
+  .status .value { text-align: left; }
+  .caption { font-size: 12px; color: #8C8C8A; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <label for="attack">Attack</label>
+    <input id="attack" type="range" min="0" max="2000" step="10" value="120">
+    <span class="value" id="attackOut">120 ms</span>
+  </div>
+  <div class="row">
+    <label for="decay">Decay</label>
+    <input id="decay" type="range" min="0" max="2000" step="10" value="300">
+    <span class="value" id="decayOut">300 ms</span>
+  </div>
+  <div class="row">
+    <label for="sustain">Sustain</label>
+    <input id="sustain" type="range" min="0" max="100" step="1" value="60">
+    <span class="value" id="sustainOut">60%</span>
+  </div>
+  <div class="row">
+    <label for="release">Release</label>
+    <input id="release" type="range" min="0" max="3000" step="10" value="600">
+    <span class="value" id="releaseOut">600 ms</span>
+  </div>
+
+  <button class="gate" id="gate" type="button" aria-pressed="false">Tocar nota — mantené apretado</button>
+
+  <canvas id="env" style="height:140px" role="img"
+          aria-label="Envolvente ADSR: el attack sube al máximo, el decay baja al nivel de sustain, la meseta dura lo que dura la tecla apretada y el release cae a silencio al soltar"></canvas>
+
+  <p class="status">etapa <span class="value" id="stage">silencio</span></p>
+  <p class="caption">Qué mirar: sustain bajo y decay corto dan un pluck; sustain alto y release largo, un pad.</p>
+
+<script>
+(function () {
+  var attack = document.getElementById('attack');
+  var decay = document.getElementById('decay');
+  var sustain = document.getElementById('sustain');
+  var release = document.getElementById('release');
+  var attackOut = document.getElementById('attackOut');
+  var decayOut = document.getElementById('decayOut');
+  var sustainOut = document.getElementById('sustainOut');
+  var releaseOut = document.getElementById('releaseOut');
+  var btn = document.getElementById('gate');
+  var stageOut = document.getElementById('stage');
+  var cv = document.getElementById('env');
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var ACCENT = '#E08E33', MUTED = '#8C8C8A', AXIS = '#2C2C2E', SECOND = '#5A5A5C';
+  var BG = '#1B1B1D', SHADE = 'rgba(90, 90, 92, 0.16)';
+  var NOMINAL = 700;
+  var mode = 'idle', pressT = 0, gateLen = 0, raf = 0;
+
+  function now() { return performance.now(); }
+
+  function vals() {
+    return { a: parseInt(attack.value, 10), d: parseInt(decay.value, 10),
+             s: parseInt(sustain.value, 10) / 100, r: parseInt(release.value, 10) };
+  }
+
+  function outs(v) {
+    attackOut.textContent = v.a + ' ms';
+    decayOut.textContent = v.d + ' ms';
+    sustainOut.textContent = Math.round(v.s * 100) + '%';
+    releaseOut.textContent = v.r + ' ms';
+  }
+
+  function ads(t, v) {
+    if (t < v.a) return v.a > 0 ? t / v.a : 1;
+    if (t < v.a + v.d) return v.d > 0 ? 1 - (1 - v.s) * (t - v.a) / v.d : v.s;
+    return v.s;
+  }
+
+  function levelAt(t, g, v) {
+    if (t < g) return ads(t, v);
+    var L = ads(g, v);
+    if (v.r <= 0) return 0;
+    var k = (t - g) / v.r;
+    return k >= 1 ? 0 : L * (1 - k);
+  }
+
+  function stageAt(t, g, v) {
+    if (t >= g) return 'release';
+    if (t < v.a) return 'attack';
+    if (t < v.a + v.d) return 'decay';
+    return 'sustain';
+  }
+
+  function points(g, v) {
+    var pts = [[0, 0]];
+    if (g >= v.a) {
+      pts.push([v.a, 1]);
+      if (g >= v.a + v.d) { pts.push([v.a + v.d, v.s]); pts.push([g, v.s]); }
+      else { pts.push([g, ads(g, v)]); }
+    } else {
+      pts.push([g, v.a > 0 ? g / v.a : 1]);
+    }
+    pts.push([g + v.r, 0]);
+    return pts;
+  }
+
+  function setup(c) {
+    var dpr = window.devicePixelRatio || 1;
+    var r = c.getBoundingClientRect();
+    var w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    var ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, r.width, r.height);
+    return { ctx: ctx, w: r.width, h: r.height };
+  }
+
+  function draw(v, g, t) {
+    var G = setup(cv), ctx = G.ctx;
+    var padL = 10, padR = 10, top = 14, base = G.h - 22;
+    var total = g + v.r; if (total <= 0) total = 1;
+    var span = G.w - padL - padR;
+    function X(tt) { return padL + (tt / total) * span; }
+    function Y(l) { return base - l * (base - top); }
+
+    ctx.fillStyle = SHADE;
+    ctx.fillRect(X(0), top, X(g) - X(0), base - top);
+
+    ctx.strokeStyle = AXIS; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(padL, base + 0.5); ctx.lineTo(G.w - padR, base + 0.5);
+    ctx.moveTo(padL + 0.5, top); ctx.lineTo(padL + 0.5, base);
+    ctx.stroke();
+
+    var ys = Y(v.s);
+    ctx.strokeStyle = SECOND; ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(padL, ys + 0.5); ctx.lineTo(G.w - padR, ys + 0.5); ctx.stroke();
+    ctx.setLineDash([]);
+
+    var txt = Math.round(v.s * 100) + '%';
+    ctx.font = '11px "JetBrains Mono", ui-monospace, monospace';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+    var tw = ctx.measureText(txt).width;
+    var tx = G.w - padR, ty = Math.max(top + 9, ys - 4);
+    ctx.fillStyle = BG; ctx.fillRect(tx - tw - 3, ty - 10, tw + 5, 13);
+    ctx.fillStyle = MUTED; ctx.fillText(txt, tx, ty);
+
+    var pts = points(g, v), i;
+    ctx.strokeStyle = ACCENT; ctx.lineWidth = 2;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (i = 0; i < pts.length; i++) {
+      var px = X(pts[i][0]), py = Y(pts[i][1]);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    ctx.font = '12px "Space Grotesk", system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.fillStyle = MUTED;
+    var segs = [['A', 0, Math.min(v.a, g)],
+                ['D', Math.min(v.a, g), Math.min(v.a + v.d, g)],
+                ['S', Math.min(v.a + v.d, g), g],
+                ['R', g, total]];
+    for (i = 0; i < segs.length; i++) {
+      var s0 = segs[i][1], s1 = segs[i][2];
+      if (X(s1) - X(s0) >= 14) ctx.fillText(segs[i][0], (X(s0) + X(s1)) / 2, G.h - 6);
+    }
+
+    if (t !== null) {
+      var bt = Math.min(t, total);
+      ctx.fillStyle = ACCENT;
+      ctx.beginPath(); ctx.arc(X(bt), Y(levelAt(bt, g, v)), 4.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function setStage(s) { if (stageOut.textContent !== s) stageOut.textContent = s; }
+
+  function render() {
+    var v = vals(); outs(v);
+    var t = null, g = v.a + v.d + NOMINAL;
+    if (!reduce && mode !== 'idle') {
+      t = now() - pressT;
+      if (mode === 'held') { g = Math.max(t, g); }
+      else {
+        g = gateLen;
+        if (t >= g + v.r) { mode = 'idle'; t = null; g = v.a + v.d + NOMINAL; }
+      }
+      setStage(t === null ? 'silencio' : stageAt(t, g, v));
+    }
+    draw(v, g, t);
+  }
+
+  function loop() {
+    raf = 0;
+    render();
+    if (mode !== 'idle') raf = requestAnimationFrame(loop);
+  }
+
+  function press(e) {
+    if (e && e.cancelable && e.type !== 'mousedown') e.preventDefault();
+    if (mode === 'held') return;
+    mode = 'held'; pressT = now();
+    btn.classList.add('on'); btn.setAttribute('aria-pressed', 'true');
+    if (reduce) { setStage('sustain'); render(); }
+    else if (!raf) raf = requestAnimationFrame(loop);
+  }
+
+  function letGo() {
+    if (mode !== 'held') return;
+    btn.classList.remove('on'); btn.setAttribute('aria-pressed', 'false');
+    if (reduce) { mode = 'idle'; setStage('silencio'); render(); return; }
+    gateLen = now() - pressT; mode = 'rel';
+    if (!raf) raf = requestAnimationFrame(loop);
+  }
+
+  btn.addEventListener('mousedown', press);
+  btn.addEventListener('touchstart', press, { passive: false });
+  btn.addEventListener('mouseup', letGo);
+  btn.addEventListener('mouseleave', letGo);
+  btn.addEventListener('touchend', letGo);
+  btn.addEventListener('touchcancel', letGo);
+  btn.addEventListener('blur', letGo);
+  btn.addEventListener('keydown', function (e) {
+    if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
+      if (e.repeat) { e.preventDefault(); return; }
+      press(e);
+    }
+  });
+  btn.addEventListener('keyup', function (e) {
+    if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') letGo();
+  });
+
+  [attack, decay, sustain, release].forEach(function (el) {
+    el.addEventListener('input', function () { if (mode === 'idle' || reduce) render(); });
+  });
+  window.addEventListener('resize', function () { if (mode === 'idle' || reduce) render(); });
+
+  render();
+})();
+</script>
+</body>
+</html>

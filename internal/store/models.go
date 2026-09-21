@@ -28,12 +28,22 @@ type Career struct {
 	Position    int32              `json:"position"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	CategoryID  pgtype.UUID        `json:"category_id"`
 }
 
 type CareerCourse struct {
 	CareerID uuid.UUID `json:"career_id"`
 	CourseID uuid.UUID `json:"course_id"`
 	Position int32     `json:"position"`
+}
+
+type Category struct {
+	ID        uuid.UUID          `json:"id"`
+	Slug      string             `json:"slug"`
+	Name      string             `json:"name"`
+	Position  int32              `json:"position"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Course struct {
@@ -48,6 +58,7 @@ type Course struct {
 	Position    int32              `json:"position"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	CategoryID  pgtype.UUID        `json:"category_id"`
 }
 
 type CourseProgress struct {

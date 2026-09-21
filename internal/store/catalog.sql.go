@@ -13,7 +13,7 @@ import (
 )
 
 const getCareerBySlug = `-- name: GetCareerBySlug :one
-SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM careers WHERE slug = $1
+SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id FROM careers WHERE slug = $1
 `
 
 func (q *Queries) GetCareerBySlug(ctx context.Context, slug string) (Career, error) {
@@ -31,12 +31,13 @@ func (q *Queries) GetCareerBySlug(ctx context.Context, slug string) (Career, err
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CategoryID,
 	)
 	return i, err
 }
 
 const getCourseBySlug = `-- name: GetCourseBySlug :one
-SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM courses WHERE slug = $1
+SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id FROM courses WHERE slug = $1
 `
 
 func (q *Queries) GetCourseBySlug(ctx context.Context, slug string) (Course, error) {
@@ -54,6 +55,7 @@ func (q *Queries) GetCourseBySlug(ctx context.Context, slug string) (Course, err
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CategoryID,
 	)
 	return i, err
 }
@@ -124,7 +126,7 @@ func (q *Queries) GetCourseCurriculum(ctx context.Context, courseID uuid.UUID) (
 }
 
 const listCareerCourses = `-- name: ListCareerCourses :many
-SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at, cc.position AS career_position
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at, c.category_id, cc.position AS career_position
 FROM career_courses cc
 JOIN courses c ON c.id = cc.course_id
 WHERE cc.career_id = $1
@@ -143,6 +145,7 @@ type ListCareerCoursesRow struct {
 	Position       int32              `json:"position"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	CategoryID     pgtype.UUID        `json:"category_id"`
 	CareerPosition int32              `json:"career_position"`
 }
 
@@ -167,6 +170,7 @@ func (q *Queries) ListCareerCourses(ctx context.Context, careerID uuid.UUID) ([]
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CategoryID,
 			&i.CareerPosition,
 		); err != nil {
 			return nil, err
@@ -218,7 +222,7 @@ func (q *Queries) ListCourseStats(ctx context.Context) ([]ListCourseStatsRow, er
 }
 
 const listPublishedCareers = `-- name: ListPublishedCareers :many
-SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM careers
+SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id FROM careers
 WHERE status = 'published'
 ORDER BY position, created_at
 `
@@ -244,6 +248,7 @@ func (q *Queries) ListPublishedCareers(ctx context.Context) ([]Career, error) {
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CategoryID,
 		); err != nil {
 			return nil, err
 		}
@@ -256,7 +261,7 @@ func (q *Queries) ListPublishedCareers(ctx context.Context) ([]Career, error) {
 }
 
 const listPublishedCareersForCourse = `-- name: ListPublishedCareersForCourse :many
-SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at
+SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.level, c.price_cents, c.status, c.position, c.created_at, c.updated_at, c.category_id
 FROM career_courses cc
 JOIN careers c ON c.id = cc.career_id
 WHERE cc.course_id = $1 AND c.status = 'published'
@@ -285,6 +290,7 @@ func (q *Queries) ListPublishedCareersForCourse(ctx context.Context, courseID uu
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CategoryID,
 		); err != nil {
 			return nil, err
 		}
@@ -297,7 +303,7 @@ func (q *Queries) ListPublishedCareersForCourse(ctx context.Context, courseID uu
 }
 
 const listPublishedCourses = `-- name: ListPublishedCourses :many
-SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at FROM courses
+SELECT id, slug, title, subtitle, description, level, price_cents, status, position, created_at, updated_at, category_id FROM courses
 WHERE status = 'published'
 ORDER BY position, created_at
 `
@@ -323,6 +329,7 @@ func (q *Queries) ListPublishedCourses(ctx context.Context) ([]Course, error) {
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CategoryID,
 		); err != nil {
 			return nil, err
 		}

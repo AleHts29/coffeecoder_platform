@@ -22,6 +22,7 @@ func NewHandler(svc *Service, logger *slog.Logger) *Handler {
 
 // Mount registra las rutas públicas del catálogo bajo el router recibido.
 func (h *Handler) Mount(r chi.Router) {
+	r.Get("/categories", h.listCategories)
 	r.Get("/careers", h.listCareers)
 	r.Get("/careers/{slug}", h.getCareer)
 	r.Get("/courses", h.listCourses)
@@ -30,31 +31,45 @@ func (h *Handler) Mount(r chi.Router) {
 
 // --- DTOs: shape público explícito. Ningún struct de store sale directo. ---
 
+type categoryDTO struct {
+	Slug string `json:"slug"`
+	Name string `json:"name"`
+}
+
+func toCategoryDTO(c *Category) *categoryDTO {
+	if c == nil {
+		return nil
+	}
+	return &categoryDTO{Slug: c.Slug, Name: c.Name}
+}
+
 type courseDTO struct {
-	ID          string `json:"id"`
-	Slug        string `json:"slug"`
-	Title       string `json:"title"`
-	Subtitle    string `json:"subtitle"`
-	Description string `json:"description"`
-	Level       string `json:"level"`
-	PriceCents  int32  `json:"price_cents"`
-	Position    int32  `json:"position"`
-	LessonCount int32  `json:"lesson_count"`
-	DurationS   int32  `json:"duration_s"`
+	ID          string       `json:"id"`
+	Slug        string       `json:"slug"`
+	Title       string       `json:"title"`
+	Subtitle    string       `json:"subtitle"`
+	Description string       `json:"description"`
+	Level       string       `json:"level"`
+	PriceCents  int32        `json:"price_cents"`
+	Position    int32        `json:"position"`
+	LessonCount int32        `json:"lesson_count"`
+	DurationS   int32        `json:"duration_s"`
+	Category    *categoryDTO `json:"category"`
 }
 
 type careerDTO struct {
-	ID          string `json:"id"`
-	Slug        string `json:"slug"`
-	Title       string `json:"title"`
-	Subtitle    string `json:"subtitle"`
-	Description string `json:"description"`
-	Level       string `json:"level"`
-	PriceCents  int32  `json:"price_cents"`
-	Position    int32  `json:"position"`
-	CourseCount int32  `json:"course_count"`
-	LessonCount int32  `json:"lesson_count"`
-	DurationS   int32  `json:"duration_s"`
+	ID          string       `json:"id"`
+	Slug        string       `json:"slug"`
+	Title       string       `json:"title"`
+	Subtitle    string       `json:"subtitle"`
+	Description string       `json:"description"`
+	Level       string       `json:"level"`
+	PriceCents  int32        `json:"price_cents"`
+	Position    int32        `json:"position"`
+	CourseCount int32        `json:"course_count"`
+	LessonCount int32        `json:"lesson_count"`
+	DurationS   int32        `json:"duration_s"`
+	Category    *categoryDTO `json:"category"`
 }
 
 type careerDetailDTO struct {
@@ -96,6 +111,7 @@ func toCourseDTO(c CourseSummary) courseDTO {
 		ID: c.ID.String(), Slug: c.Slug, Title: c.Title, Subtitle: c.Subtitle,
 		Description: c.Description, Level: c.Level, PriceCents: c.PriceCents,
 		Position: c.Position, LessonCount: c.LessonCount, DurationS: c.DurationS,
+		Category: toCategoryDTO(c.Category),
 	}
 }
 
@@ -105,6 +121,7 @@ func toCareerDTO(c CareerSummary) careerDTO {
 		Description: c.Description, Level: c.Level, PriceCents: c.PriceCents,
 		Position: c.Position, CourseCount: c.CourseCount,
 		LessonCount: c.LessonCount, DurationS: c.DurationS,
+		Category: toCategoryDTO(c.Category),
 	}
 }
 
@@ -140,6 +157,19 @@ func toCareerRefDTOs(in []store.Career) []careerRefDTO {
 }
 
 // --- handlers ---
+
+func (h *Handler) listCategories(w http.ResponseWriter, r *http.Request) {
+	cats, err := h.svc.Categories(r.Context())
+	if err != nil {
+		h.fail(w, "list categories", err)
+		return
+	}
+	out := make([]categoryDTO, 0, len(cats))
+	for _, c := range cats {
+		out = append(out, categoryDTO{Slug: c.Slug, Name: c.Name})
+	}
+	httpx.JSON(w, http.StatusOK, out)
+}
 
 func (h *Handler) listCareers(w http.ResponseWriter, r *http.Request) {
 	careers, err := h.svc.ListCareers(r.Context())

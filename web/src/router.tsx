@@ -75,16 +75,18 @@ const indexRoute = createRoute({
 const catalogRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/catalogo',
-  validateSearch: (s: Record<string, unknown>): CatalogSearch =>
-    isLevel(s.tueste) ? { tueste: s.tueste } : {},
+  validateSearch: (s: Record<string, unknown>): CatalogSearch => ({
+    ...(isLevel(s.tueste) ? { tueste: s.tueste } : {}),
+    ...(typeof s.categoria === 'string' && s.categoria ? { categoria: s.categoria } : {}),
+  }),
   loader: ({ context: { queryClient } }) =>
     Promise.all([
       queryClient.ensureQueryData(careersQuery()),
       queryClient.ensureQueryData(coursesQuery()),
     ]),
   component: function CatalogRoute() {
-    const { tueste } = catalogRoute.useSearch()
-    return <Catalog tueste={tueste} />
+    const { tueste, categoria } = catalogRoute.useSearch()
+    return <Catalog tueste={tueste} categoria={categoria} />
   },
 })
 
