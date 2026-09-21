@@ -50,10 +50,19 @@ MODULES = [
     "BONUS: recursos creativos en la mezcla", "Trabajo práctico final",
 ]
 
+# Biblioteca de demos del curso. Las demos son por curso: `lfo-amplitud`
+# existe también en el curso de Go, acá va su propia copia.
 DEMOS = [
-    (1, "formas-de-onda", "Formas de onda y armónicos", 420),
-    (2, "envolvente-adsr", "Envolvente ADSR", 420),
+    (1, "formas-de-onda", "Formas de onda y armónicos", 460),
+    (2, "envolvente-adsr", "Envolvente ADSR", 460),
     (3, "cuestionario-analog-1", "Autoevaluación · Analog 1", 460),
+    (4, "mono-vs-poli", "Monofonía y polifonía", 480),
+    (5, "oscillator-sync", "Oscillator sync", 460),
+    (6, "lfo-forma", "Formas del LFO", 440),
+    (7, "lfo-amplitud", "Modulación de amplitud", 420),
+    (8, "unisono-detune", "Unísono y detune", 480),
+    (9, "envolvente-loop", "Loops de envolvente", 500),
+    (10, "cuestionario-analog-2", "Autoevaluación · Analog 2", 460),
 ]
 
 src = ROOT / "seed" / "produccion-musical"
@@ -76,6 +85,26 @@ MODULE_1 = [
      "article", None, False, art("07-proyecto.md")),
     (8, "Cuestionario - Analog 1", "Cuatro preguntas para chequear lo del módulo.",
      "article", None, False, art("08-cuestionario.md")),
+]
+
+# Módulo 2 · Analog 2: Polifonía (7 lecciones).
+MODULE_2 = [
+    (1, "Video 1", "Presentación del módulo.", "video", 20 * 60, False, ""),
+    (2, "Polifonía y osciladores en capas",
+     "Voces, note stealing, suma de osciladores y oscillator sync.",
+     "article", None, False, art("m2-02-polifonia-osciladores.md")),
+    (3, "Modulación: LFO, AM y vibrato",
+     "El LFO de Analog, la modulación de amplitud y el vibrato.",
+     "article", None, False, art("m2-03-modulacion.md")),
+    (4, "Cuerpo y voces: unísono, ruteo y envolventes",
+     "Unison con detune, los cuatro ruteos rápidos y los loops de envolvente.",
+     "article", None, False, art("m2-04-cuerpo-y-voces.md")),
+    (5, "Ejercicio - Analog 2", "Diseñá un pad polifónico ancho desde cero.",
+     "article", None, False, art("m2-05-ejercicio.md")),
+    (6, "Proyecto de Clase | Polifonía", "Diseñá los Analog de los canales 14 y 15.",
+     "article", None, False, art("m2-06-proyecto.md")),
+    (7, "Cuestionario - Analog 2", "Cuatro preguntas para chequear lo del módulo.",
+     "article", None, False, art("m2-07-cuestionario.md")),
 ]
 
 DESCRIPTION = ("Un recorrido por Ableton Live pensado para entender, no para memorizar botones: "
@@ -111,21 +140,26 @@ for n, slug, title, h in DEMOS:
 VALUES ('{demo(n)}', '{COURSE}', '{slug}', {q(title)}, {dollar('d' + str(n), html)}, {h})
 ON CONFLICT (id) DO UPDATE SET html = EXCLUDED.html, title = EXCLUDED.title, height_px = EXCLUDED.height_px;""")
 
-out += ["", "-- Módulos: uno por unidad. Solo el primero tiene lecciones cargadas;",
-        "-- el resto marca el plan (un módulo vacío no se publica)."]
+out += ["", "-- Módulos: uno por unidad. Los que todavía no tienen lecciones",
+        "-- marcan el plan (un módulo vacío no se publica)."]
 for i, title in enumerate(MODULES, 1):
     out.append(f"INSERT INTO modules (id, course_id, title, position) VALUES "
                f"('{mod(i)}', '{COURSE}', {q(title)}, {i}) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;")
 
-out += ["", "-- Módulo 1 · Analog 1: Monofonía (8 lecciones)."]
-for n, title, desc, kind, dur, free, body in MODULE_1:
-    seconds = dur if kind == "video" else reading_time(body)
-    out.append(f"""INSERT INTO lessons (id, module_id, title, description, duration_s, is_free_sample, position, kind, body_md)
-VALUES ('{les(1, n)}', '{mod(1)}', {q(title)}, {q(desc)}, {seconds}, {str(free).lower()}, {n}, '{kind}', {dollar('b' + str(n), body)})
+# Las duraciones de video son placeholders: al subir el archivo real, el
+# provider informa la duración y la pisa.
+for module_no, lessons, label in ((1, MODULE_1, "Analog 1: Monofonía"), (2, MODULE_2, "Analog 2: Polifonía")):
+    out += ["", f"-- Módulo {module_no} · {label} ({len(lessons)} lecciones)."]
+    for n, title, desc, kind, dur, free, body in lessons:
+        seconds = dur if kind == "video" else reading_time(body)
+        tag = f"b{module_no}{n}"
+        out.append(f"""INSERT INTO lessons (id, module_id, title, description, duration_s, is_free_sample, position, kind, body_md)
+VALUES ('{les(module_no, n)}', '{mod(module_no)}', {q(title)}, {q(desc)}, {seconds}, {str(free).lower()}, {n}, '{kind}', {dollar(tag, body)})
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
   duration_s = EXCLUDED.duration_s, is_free_sample = EXCLUDED.is_free_sample,
   kind = EXCLUDED.kind, body_md = EXCLUDED.body_md;""")
 
 out += ["", "COMMIT;"]
 (ROOT / "db" / "seed" / "curso-produccion-musical.sql").write_text("\n".join(out) + "\n")
-print(f"curso-produccion-musical.sql · {len(MODULES)} módulos · {len(MODULE_1)} lecciones · {len(DEMOS)} demos")
+print(f"curso-produccion-musical.sql · {len(MODULES)} módulos · "
+      f"{len(MODULE_1) + len(MODULE_2)} lecciones · {len(DEMOS)} demos")

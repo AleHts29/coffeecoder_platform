@@ -8,59 +8,28 @@ funcional completa está en `docs/SPEC.md` y el design system en
 
 ## Estado actual
 
-- `db/migrations/0001_init.sql` está **validado contra PostgreSQL 16
-  real** (migración + smoke tests de los flujos críticos). Es canónico:
-  no lo reescribas ni "mejores" — extendelo con nuevas migraciones.
-- `db/queries/*.sql` fueron validadas con `sqlc generate` v1.30
-  (`make sqlc` usa el binario de `./bin`, instalado por `make tools`).
-- `internal/` tiene P1 y P2 **compilados y probados** (2026-09-04):
-  `go build ./...` y `go vet` limpios, y el flujo de auth verificado
-  contra Postgres real (registro, login, refresh rotado, reuso revoca
-  la familia, RBAC, cookie HttpOnly) y con tests de service en
-  `internal/auth/service_test.go`. Tratá el código existente como diseño aprobado, no como borrador:
-  mantené su estructura y decisiones, arreglá solo errores.
-- `internal/catalog` (P3) está implementado y probado contra el seed
-  (`make seed`): borradores ocultos, 404 en español, currícula sin
-  `video_asset_id`.
-- El frontend (`web/`) tiene el scaffold de P3: layout, landing,
-  catálogo con filtro por tueste, carrera y curso consumiendo la API
-  real. `web/src/styles/tokens.css` es el design system canónico.
-  Lighthouse accesibilidad 95. **Pendiente de aprobación:** `ink-faint`
-  (#7A7A78) no cumple AA 4.5:1 para texto chico en ningún fondo
-  (4.28 / 4.00 / 3.60); `#8C8C8A` cumple en los tres. Hasta que se
-  apruebe, se usa tal cual.
-- P4 (video) implementado: `internal/media` con Bunny real y Fake de
-  desarrollo, playback con auth opcional, webhook firmado, tickets TUS,
-  player HLS y login/registro en la PWA. Tests de firma contra los
-  vectores oficiales de Bunny y de acceso contra Postgres. **Pendiente
-  con credenciales reales:** subir un video a Bunny y reproducirlo con
-  URL firmada (necesita Token Authentication activo en el pull zone).
-- P5 (progreso) implementado: `internal/progress` (heartbeat con umbral
-  90 %, completado manual, `course_progress` materializado, dashboard
-  sobre agregados), migración `0002_daily_activity` para racha y horas,
-  player que retoma posición y marca completadas, panel en `/panel`,
-  nodos de estado en el camino y card de acceso para compradores.
-- P6 (pagos + emails) implementado: `internal/billing` (Mercado Pago
-  Checkout Pro + Fake de dev, webhook firmado e idempotente, reembolso
-  admin) e `internal/mail` (Resend + log). Probado con el fake; con
-  credenciales reales falta la compra en sandbox de MP. Los tests
-  cubren N webhooks = 1 enrollment y carrera = todos sus cursos.
-- P7 (admin) implementado: CRUD de contenido con reordenamiento
-  transaccional (`catalog/admin_service.go`), alumnos y enrollments
-  manuales (`internal/enrollment`), pantallas en `web/src/pages/admin`.
-  Probado por API (curso desde cero, reorden, publicación, alta y baja
-  de acceso) y con capturas de las cuatro pantallas.
-- P8 (pulido) implementado: header móvil, bottom sheet del player, OG
-  por producto servido desde el binario (`WEB_DIST`), chunks por ruta,
-  service worker. Revisión contra DESIGN.md hecha pantalla por pantalla;
-  lo único fuera de norma sigue siendo `ink-faint` (ver arriba).
-- **MVP completo (P1–P8) el 2026-09-07.** Pendientes que requieren al
-  dueño: credenciales reales de Bunny, Mercado Pago y Resend; decisión
-  sobre `ink-faint`; un usuario admin real (hoy se promueve por SQL).
-- Migraciones: `make migrate` es idempotente vía `schema_migrations`
-  (la tabla la crea el Makefile / testutil, no una migración).
-- Tests de integración: `make test` (usa `coffeecoder_test`, ver
-  `internal/testutil`). Los IDs del seed están en `testutil/seed.go`.
+**MVP completo (P1–P8) desde el 2026-09-07.** El detalle por fase, las
+decisiones y los pendientes están en `docs/ESTADO.md`, que se actualiza
+en cada implementación: leelo antes de planificar.
+
+Resumen de lo que hay hoy:
+
+- Backend Go por módulos en `internal/` (auth, catalog, content, media,
+  progress, enrollment, billing, mail), PWA React en `web/`, y un binario
+  que sirve las dos cosas en producción (`WEB_DIST`).
+- `db/migrations/0001_init.sql` está validado contra PostgreSQL 16 real y
+  es canónico: no lo reescribas, extendelo con migraciones nuevas.
+  `make migrate` es idempotente vía `schema_migrations`.
+- Lecciones de **video** y de **lectura** (Markdown + demos interactivas,
+  ver `docs/DEMOS.md`). Categorías de catálogo. Dos cursos sembrados:
+  "Go desde cero" y "Producción Musical con Ableton" (este último en
+  draft, con su propio seed generado por `make seed-gen`).
+- Tests de integración contra Postgres: `make test` (base
+  `coffeecoder_test`, ver `internal/testutil`; IDs del seed en
+  `testutil/seed.go`).
+- Proveedores con doble implementación: video (Bunny / fake), pagos
+  (Mercado Pago / fake), imágenes y adjuntos (Bunny Storage / disco
+  local). Los `fake` y `local` solo corren en `APP_ENV=development`.
 
 ## Stack (fijo, no proponer alternativas)
 
@@ -147,6 +116,9 @@ web/                React PWA
   **Máximo un botón primario (caramelo) por vista.**
 - Datos (duraciones, porcentajes, numeración, timestamps) siempre en
   JetBrains Mono; UI y prosa en Space Grotesk, pesos 400/500.
+- Las demos interactivas siguen `docs/DEMOS.md`: HTML autocontenido, solo
+  tokens Grafito, y si llevan sonido, el helper `createAudio()` copiado
+  tal cual (Web Audio nativa, opt-in, sin autoplay).
 - Niveles de dificultad con nomenclatura de tueste: suave / medio /
   intenso (así está en el CHECK de la base).
 
@@ -161,8 +133,8 @@ llegan pegados en la sesión.
 
 ## Flujo de trabajo esperado
 
-Implementar por fases (P1–P8 en `docs/SPEC.md`), cada una con sus
-criterios de aceptación. Al terminar una fase: build limpio, tests en
-verde, y un resumen corto de decisiones tomadas dentro de la fase.
+El MVP por fases (P1–P8 en `docs/SPEC.md`) ya está cerrado. Lo que
+llega ahora son planes puntuales: implementalos completos, con build
+limpio, tests en verde y un resumen corto de las decisiones tomadas.
 Ante ambigüedad funcional, preguntar antes de asumir; ante ambigüedad
 técnica menor, decidir y documentar en una línea.

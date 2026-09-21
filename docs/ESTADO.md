@@ -3,7 +3,8 @@
 > Documento vivo. Lo actualiza Claude Code al cerrar cada implementación y
 > lo pushea; Claude web lo lee del repo conectado por GitHub para planificar
 > sobre el estado real.
-> Última actualización: 2026-09-21 (categorías + curso de producción musical).
+> Última actualización: 2026-09-21 (categorías, curso de producción musical,
+> demos con audio).
 
 ## Cómo trabajamos
 
@@ -80,21 +81,41 @@ propia (`…-AB…`).
   subido todavía, con la duración del curso original) y 5 artículos con
   el contenido real del dueño. Muestras gratis: Video 1 (el enganche) e
   "Introducción a la Síntesis" (por su demo tocable).
+- **Demos con audio.** `docs/DEMOS.md` incorporó la regla de audio: Web
+  Audio nativa, todo sintetizado en el cliente, opt-in sin autoplay,
+  master gain 0.15 con volumen y mute, rampas anti-click, nada sonando
+  solo, y un **helper canónico `createAudio()`** que todas copian igual.
+  Las demos del curso de música lo usan; las del curso de Go no llevan
+  audio.
+- **Módulo 2 · "Analog 2: Polifonía"**, 7 lecciones: 1 video placeholder
+  y 6 artículos. Seis demos nuevas: `mono-vs-poli`, `oscillator-sync`,
+  `lfo-forma`, `unisono-detune`, `envolvente-loop` y
+  `cuestionario-analog-2`. `lfo-amplitud` se reusa acá con una copia en
+  la biblioteca de este curso (las demos son por curso).
 - **Tres demos nuevas** en la biblioteca del curso: `formas-de-onda`
   (onda ↔ espectro, reconstrucción por Fourier), `envolvente-adsr`
   (gate con bolita recorriendo la envolvente) y `cuestionario-analog-1`
   (4 preguntas con feedback, sin persistencia: reemplaza al módulo de
   quizzes, que está fuera del MVP). Las tres pasan `docs/DEMOS.md`.
 - Las fuentes editables están en `seed/produccion-musical/*.md` y
-  `seed/demos/*.html`; el `.sql` se regenera desde ahí.
-- El **proyecto de clase** (.zip de 18 MB) está subido y linkeado desde
-  la consigna de la lección 7.
+  `seed/demos/*.html`; los dos `.sql` de contenido se regeneran con
+  `make seed-gen` (`scripts/gen-seed-*.py`). No editar esos `.sql` a mano.
+- `lfo-amplitud` llega hasta 2 Hz de Rate, así que se escucha el trémolo
+  pero no el salto a AM audible. Es correcto para lo que enseña: el
+  sidechain de un kick a 120 BPM modula a ~2 Hz. Ampliar el rango
+  rompería el dibujo, que asume un LFO más lento que la portadora.
+- El **proyecto de clase** de Analog 1 (.zip de 18 MB) está subido y
+  linkeado desde la consigna. El de Analog 2 (`P302 - ANALOG II -
+  Polifonía Project.zip`) todavía no lo pasó el dueño: la consigna lo
+  deja anotado como `<!-- PENDIENTE -->`.
 - El seed deja el curso en `draft`. En la base local de desarrollo está
   **publicado** para poder recorrerlo, y los tres videos usan el asset
   de ejemplo de `make dev-videos` (`VIDEO_PROVIDER=fake`).
 - **Pendiente del dueño:** grabar y subir los tres videos, definir el
   precio final, decidir si va en alguna carrera, y el contenido de los
-  módulos 2 a 16 (llegan de a poco).
+  módulos 3 a 16 (llegan de a poco), el zip de Analog 2, y decidir si la
+  lección 2 del módulo 2 va como muestra gratis (hoy es paga: el módulo
+  1 ya tiene dos gratis de gancho).
 
 ## Lecciones de lectura y demos (2026-09-21)
 

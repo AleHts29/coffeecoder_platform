@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unísono con detune</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 12px; background: #1B1B1D; color: #EDEDEB;
+         font-family: 'Space Grotesk', system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 58px 1fr 66px; gap: 10px;
+         align-items: center; margin-bottom: 8px; }
+  .row label { font-size: 13px; color: #9A9A97; }
+  .value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
+           text-align: right; }
+  input[type=range] { accent-color: #E08E33; width: 100%; margin: 0; }
+  input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .audio { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
+  .audio .btn { font-family: inherit; font-size: 13px; line-height: 1; padding: 8px 10px;
+                border-radius: 6px; cursor: pointer; background: #242426;
+                border: 1px solid #3A3A3C; color: #EDEDEB; }
+  .audio .btn[aria-pressed="true"] { background: #E08E33; border-color: #E08E33; color: #141414; }
+  .audio .btn:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .audio .label { font-size: 12px; color: #8C8C8A; }
+  .audio input[type=range] { width: auto; flex: 1 1 90px; min-width: 64px; }
+  .audio .value { width: 38px; text-align: right; color: #8C8C8A; }
+  .gate { display: block; width: 100%; margin: 2px 0 8px; padding: 7px 10px;
+          font-family: inherit; font-size: 13px; font-weight: 500;
+          background: #242426; border: 1px solid #3A3A3C; border-radius: 6px;
+          color: #EDEDEB; cursor: pointer; touch-action: none;
+          -webkit-user-select: none; user-select: none; }
+  .gate.on { background: #E08E33; border-color: #E08E33; color: #141414; }
+  .gate:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  canvas { display: block; width: 100%; }
+  .caption { font-size: 12px; color: #8C8C8A; margin: 5px 0 3px; }
+  .caption .value { text-align: left; }
+  .note { font-size: 12px; color: #8C8C8A; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <label for="voices">Voces</label>
+    <input id="voices" type="range" min="1" max="7" step="1" value="3">
+    <span class="value" id="voicesOut">3</span>
+  </div>
+  <div class="row">
+    <label for="detune">Detune</label>
+    <input id="detune" type="range" min="0" max="50" step="1" value="12">
+    <span class="value" id="detuneOut">12 cents</span>
+  </div>
+
+  <div class="audio">
+    <button id="snd" type="button" class="btn" aria-pressed="false">Sonido</button>
+    <label for="vol" class="label">Volumen</label>
+    <input id="vol" type="range" min="0" max="100" step="1" value="15">
+    <span class="value" id="volOut">15%</span>
+  </div>
+
+  <button class="gate" id="play" type="button" aria-pressed="false">Tocar — mantené apretado</button>
+
+  <p class="caption" id="waveCap">Copias y suma · cámara lenta</p>
+  <canvas id="wave" style="height:122px" role="img"
+          aria-label="Las copias de la onda sawtooth, tenues y apenas desfasadas entre sí, y su suma resaltada: al desafinar, la suma se deforma y su amplitud late"></canvas>
+
+  <p class="caption">Espectro · batido <span class="value" id="beat">—</span></p>
+  <canvas id="spec" style="height:66px" role="img"
+          aria-label="Barras de espectro alrededor de la fundamental de 220 Hz: al subir el detune, las voces se separan y la energía se ensancha"></canvas>
+
+  <p class="note">Qué mirar: una voz suena fina; apilarla apenas desafinada la engorda y la hace latir — es el supersaw.</p>
+
+<script>
+(function () {
+  var voicesEl = document.getElementById('voices');
+  var detuneEl = document.getElementById('detune');
+  var voicesOut = document.getElementById('voicesOut');
+  var detuneOut = document.getElementById('detuneOut');
+  var beatOut = document.getElementById('beat');
+  var snd = document.getElementById('snd');
+  var vol = document.getElementById('vol');
+  var volOut = document.getElementById('volOut');
+  var btn = document.getElementById('play');
+  var waveC = document.getElementById('wave');
+  var waveCap = document.getElementById('waveCap');
+  var specC = document.getElementById('spec');
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var ACCENT = '#E08E33', MUTED = '#8C8C8A', AXIS = '#2C2C2E', SECOND = '#5A5A5C';
+  var SURFACE = '#242426';
+  var F0 = 220, MAXV = 7, CYCLES = 3, SLOW = 0.12, SPAN = 60;
+  var WIN = CYCLES / F0;
+  // arranca con las copias ya desfasadas, para no mostrar el caso coherente al entrar
+  var start = performance.now() - 1500, raf = 0;
+
+  // --- audio: patrón compartido de docs/DEMOS.md (no modificar) ---
+  function createAudio() {
+    var ctx = null, master = null, on = false;
+    function ensure() {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.15;
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    }
+    return {
+      on: function () { return on; },
+      ctx: function () { return ctx; },
+      master: function () { return master; },
+      // Habilita o silencia. Devuelve el estado nuevo. Es el gesto que
+      // crea el AudioContext (política de autoplay de los browsers).
+      toggle: function () {
+        on = !on;
+        if (on) ensure(); else if (ctx) ctx.suspend();
+        return on;
+      },
+      setVolume: function (v) { if (master) master.gain.value = v; },
+      suspend: function () { if (ctx && ctx.state === 'running') ctx.suspend(); },
+      // Rampa anti-click: nunca asignar .value de un gain que está sonando.
+      ramp: function (param, value, seconds) {
+        var t = ctx ? ctx.currentTime : 0;
+        param.cancelScheduledValues(t);
+        param.setValueAtTime(param.value, t);
+        param.linearRampToValueAtTime(value, t + (seconds || 0.01));
+      }
+    };
+  }
+  var audio = createAudio();
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) audio.suspend();
+  });
+  window.addEventListener('pagehide', function () { audio.suspend(); });
+  // --- fin del patrón compartido ---
+
+  var stack = null, noteGain = null, playing = false;
+
+  function hz(c) { return F0 * Math.pow(2, c / 1200); }
+  function saw(p) { p = p - Math.floor(p); return 2 * p - 1; }
+
+  function vals() {
+    var n = parseInt(voicesEl.value, 10);
+    var d = parseInt(detuneEl.value, 10);
+    var step = n === 1 ? 0 : (2 * d) / (n - 1);
+    var cents = [], i;
+    for (i = 0; i < n; i++) cents.push(n === 1 ? 0 : -d + step * i);
+    return { n: n, d: d, step: step, cents: cents };
+  }
+
+  function beatHz(v) {
+    if (v.step === 0) return 0;
+    return Math.abs(hz(v.step / 2) - hz(-v.step / 2));
+  }
+
+  function outs(v) {
+    voicesOut.textContent = String(v.n);
+    detuneOut.textContent = v.d + ' cents';
+    var b = beatHz(v);
+    beatOut.textContent = b > 0 ? b.toFixed(1) + ' Hz' : '—';
+  }
+
+  // Nivel por voz: se normaliza por la cantidad de voces para no clipear.
+  function applyAudio(v, t) {
+    if (!stack) return;
+    var g = 1 / Math.sqrt(v.n), i;
+    for (i = 0; i < MAXV; i++) {
+      var live = i < v.n;
+      audio.ramp(stack[i].gain.gain, live ? g : 0, t);
+      if (live) audio.ramp(stack[i].osc.detune, v.cents[i], t);
+    }
+  }
+
+  function noteOff(fast) {
+    if (!stack) return;
+    var ctx = audio.ctx(), s = stack, ng = noteGain, i;
+    stack = null; noteGain = null;
+    if (!ctx) return;
+    var rel = fast ? 0.006 : 0.022;
+    audio.ramp(ng.gain, 0, rel);
+    var stopAt = ctx.currentTime + rel + 0.03;
+    for (i = 0; i < s.length; i++) { try { s[i].osc.stop(stopAt); } catch (e) {} }
+    setTimeout(function () { try { ng.disconnect(); } catch (e) {} }, (rel + 0.12) * 1000);
+  }
+
+  function noteOn() {
+    var ctx = audio.ctx();
+    if (!ctx || !audio.on()) return;
+    noteOff(true);
+    noteGain = ctx.createGain();
+    noteGain.gain.value = 0;
+    noteGain.connect(audio.master());
+    stack = [];
+    for (var i = 0; i < MAXV; i++) {
+      var osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = F0;
+      osc.detune.value = 0;
+      var g = ctx.createGain();
+      g.gain.value = 0;
+      osc.connect(g); g.connect(noteGain);
+      osc.start();
+      stack.push({ osc: osc, gain: g });
+    }
+    applyAudio(vals(), 0.012);
+    audio.ramp(noteGain.gain, 1, 0.012);
+  }
+
+  function paintSnd(on) { snd.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+
+  function press(e) {
+    if (e && e.cancelable && e.type !== 'mousedown') e.preventDefault();
+    if (playing) return;
+    playing = true;
+    btn.classList.add('on'); btn.setAttribute('aria-pressed', 'true');
+    if (!audio.on()) {
+      paintSnd(audio.toggle());
+      audio.setVolume(parseInt(vol.value, 10) / 100);
+    } else {
+      var c = audio.ctx();
+      if (c && c.state === 'suspended') c.resume();
+    }
+    noteOn();
+  }
+
+  function letGo() {
+    if (!playing) return;
+    playing = false;
+    btn.classList.remove('on'); btn.setAttribute('aria-pressed', 'false');
+    noteOff(false);
+  }
+
+  function setup(c) {
+    var dpr = window.devicePixelRatio || 1;
+    var r = c.getBoundingClientRect();
+    var w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    var ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, r.width, r.height);
+    return { ctx: ctx, w: r.width, h: r.height };
+  }
+
+  function drawWave(v, tv) {
+    var G = setup(waveC), ctx = G.ctx, i, x;
+    var mid = G.h / 2, amp = G.h / 2 - 7;
+    var steps = Math.max(120, Math.round(G.w));
+
+    ctx.strokeStyle = AXIS; ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(0, mid - amp + 0.5); ctx.lineTo(G.w, mid - amp + 0.5);
+    ctx.moveTo(0, mid + amp + 0.5); ctx.lineTo(G.w, mid + amp + 0.5);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(0, mid + 0.5); ctx.lineTo(G.w, mid + 0.5); ctx.stroke();
+
+    var f = [], drift = [];
+    for (i = 0; i < v.n; i++) {
+      f.push(hz(v.cents[i]));
+      drift.push((f[i] - F0) * tv);
+    }
+
+    if (v.n > 1) {
+      ctx.strokeStyle = SECOND; ctx.lineWidth = 1;
+      for (i = 0; i < v.n; i++) {
+        ctx.beginPath();
+        for (x = 0; x <= steps; x++) {
+          var px = x * G.w / steps;
+          var y = mid - saw(f[i] * (px / G.w) * WIN + drift[i]) * amp;
+          if (x === 0) ctx.moveTo(px, y); else ctx.lineTo(px, y);
+        }
+        ctx.stroke();
+      }
+    }
+
+    ctx.strokeStyle = ACCENT; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (x = 0; x <= steps; x++) {
+      var qx = x * G.w / steps, s = 0;
+      for (i = 0; i < v.n; i++) s += saw(f[i] * (qx / G.w) * WIN + drift[i]);
+      var sy = mid - (s / v.n) * amp;
+      if (x === 0) ctx.moveTo(qx, sy); else ctx.lineTo(qx, sy);
+    }
+    ctx.stroke();
+  }
+
+  function drawSpec(v) {
+    var G = setup(specC), ctx = G.ctx, i;
+    var pad = 16, base = G.h - 17, top = 6;
+    var span = G.w - pad * 2;
+    function X(c) { return pad + (c + SPAN) / (2 * SPAN) * span; }
+
+    // la banda que ocupan las voces: se ensancha con el detune
+    if (v.n > 1 && v.d > 0) {
+      ctx.fillStyle = SURFACE;
+      ctx.fillRect(X(-v.d), top, X(v.d) - X(-v.d), base - top);
+    }
+
+    ctx.strokeStyle = AXIS; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, base + 0.5); ctx.lineTo(G.w, base + 0.5); ctx.stroke();
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    ctx.moveTo(Math.round(X(0)) + 0.5, top); ctx.lineTo(Math.round(X(0)) + 0.5, base);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = SECOND;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(X(-50)) + 0.5, base); ctx.lineTo(Math.round(X(-50)) + 0.5, base + 4);
+    ctx.moveTo(Math.round(X(50)) + 0.5, base); ctx.lineTo(Math.round(X(50)) + 0.5, base + 4);
+    ctx.stroke();
+
+    var h = (base - top) / Math.sqrt(v.n), bw = 7;
+    ctx.fillStyle = ACCENT;
+    for (i = 0; i < v.n; i++) {
+      ctx.fillRect(Math.round(X(v.cents[i]) - bw / 2), base - h, bw, h);
+    }
+
+    ctx.font = '10px "JetBrains Mono", ui-monospace, monospace';
+    ctx.fillStyle = MUTED; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('-50', X(-50), base + 5);
+    ctx.fillText('220 Hz', X(0), base + 5);
+    ctx.fillText('+50', X(50), base + 5);
+  }
+
+  function render() {
+    var v = vals();
+    outs(v);
+    var tv;
+    if (reduce) {
+      var b = beatHz(v);
+      tv = b > 0 ? 0.25 / b : 0;
+    } else {
+      tv = (performance.now() - start) / 1000 * SLOW;
+    }
+    drawWave(v, tv);
+    drawSpec(v);
+  }
+
+  function loop() {
+    raf = requestAnimationFrame(loop);
+    render();
+  }
+
+  function onControl() {
+    var v = vals();
+    outs(v);
+    applyAudio(v, 0.02);
+    if (reduce) render();
+  }
+
+  voicesEl.addEventListener('input', onControl);
+  detuneEl.addEventListener('input', onControl);
+  window.addEventListener('resize', render);
+
+  vol.addEventListener('input', function () {
+    var p = parseInt(vol.value, 10);
+    volOut.textContent = p + '%';
+    audio.setVolume(p / 100);
+  });
+
+  snd.addEventListener('click', function () {
+    var on = audio.toggle();
+    paintSnd(on);
+    if (!on) { letGo(); return; }
+    audio.setVolume(parseInt(vol.value, 10) / 100);
+    if (playing) noteOn();
+  });
+
+  btn.addEventListener('mousedown', press);
+  btn.addEventListener('touchstart', press, { passive: false });
+  btn.addEventListener('mouseup', letGo);
+  btn.addEventListener('mouseleave', letGo);
+  btn.addEventListener('touchend', letGo);
+  btn.addEventListener('touchcancel', letGo);
+  btn.addEventListener('blur', letGo);
+  btn.addEventListener('keydown', function (e) {
+    if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
+      if (e.repeat) { e.preventDefault(); return; }
+      press(e);
+    }
+  });
+  btn.addEventListener('keyup', function (e) {
+    if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') letGo();
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) letGo();
+  });
+
+  if (reduce) waveCap.textContent = 'Copias y suma';
+  render();
+  if (!reduce) raf = requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

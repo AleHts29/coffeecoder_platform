@@ -16,6 +16,15 @@
            text-align: right; }
   input[type=range] { accent-color: #E08E33; width: 100%; margin: 0; }
   input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .audio { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+  .audio .btn { font-family: inherit; font-size: 13px; line-height: 1; padding: 8px 10px;
+                border-radius: 6px; cursor: pointer; background: #242426;
+                border: 1px solid #3A3A3C; color: #EDEDEB; }
+  .audio .btn[aria-pressed="true"] { background: #E08E33; border-color: #E08E33; color: #141414; }
+  .audio .btn:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .audio .label { font-size: 12px; color: #8C8C8A; }
+  .audio input[type=range] { width: 110px; flex: 0 1 110px; }
+  .audio .value { width: 38px; text-align: right; color: #8C8C8A; }
   .gate { display: block; width: 100%; margin: 2px 0 10px; padding: 7px 10px;
           font-family: inherit; font-size: 13px; font-weight: 500;
           background: #242426; border: 1px solid #3A3A3C; border-radius: 6px;
@@ -49,6 +58,13 @@
     <label for="release">Release</label>
     <input id="release" type="range" min="0" max="3000" step="10" value="600">
     <span class="value" id="releaseOut">600 ms</span>
+  </div>
+
+  <div class="audio">
+    <button id="snd" type="button" class="btn" aria-pressed="false">Sonido</button>
+    <label for="vol" class="label">Volumen</label>
+    <input id="vol" type="range" min="0" max="100" step="1" value="15">
+    <span class="value" id="volOut">15%</span>
   </div>
 
   <button class="gate" id="gate" type="button" aria-pressed="false">Tocar nota — mantené apretado</button>
@@ -219,10 +235,117 @@
     if (mode !== 'idle') raf = requestAnimationFrame(loop);
   }
 
+  // --- audio: patrón compartido de docs/DEMOS.md (no modificar) ---
+  function createAudio() {
+    var ctx = null, master = null, on = false;
+    function ensure() {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.15;
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    }
+    return {
+      on: function () { return on; },
+      ctx: function () { return ctx; },
+      master: function () { return master; },
+      // Habilita o silencia. Devuelve el estado nuevo. Es el gesto que
+      // crea el AudioContext (política de autoplay de los browsers).
+      toggle: function () {
+        on = !on;
+        if (on) ensure(); else if (ctx) ctx.suspend();
+        return on;
+      },
+      setVolume: function (v) { if (master) master.gain.value = v; },
+      suspend: function () { if (ctx && ctx.state === 'running') ctx.suspend(); },
+      // Rampa anti-click: nunca asignar .value de un gain que está sonando.
+      ramp: function (param, value, seconds) {
+        var t = ctx ? ctx.currentTime : 0;
+        param.cancelScheduledValues(t);
+        param.setValueAtTime(param.value, t);
+        param.linearRampToValueAtTime(value, t + (seconds || 0.01));
+      }
+    };
+  }
+  var audio = createAudio();
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) audio.suspend();
+  });
+  window.addEventListener('pagehide', function () { audio.suspend(); });
+
+  // --- nota: A3 = 220 Hz, sawtooth, con la MISMA envolvente que dibuja el canvas ---
+  var FREQ = 220;
+  var sndBtn = document.getElementById('snd');
+  var volIn = document.getElementById('vol');
+  var volOut = document.getElementById('volOut');
+  var note = null, switching = false;
+
+  function noteOn(v) {
+    if (!audio.on()) return;
+    noteOff(true);
+    var ctx = audio.ctx(), t = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = FREQ;
+    var g = ctx.createGain();
+    // attack y decay con rampas; piso de 5 ms para no cortar en seco.
+    var a = Math.max(v.a / 1000, 0.005), d = Math.max(v.d / 1000, 0.005);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.9, t + a);
+    g.gain.linearRampToValueAtTime(0.9 * v.s, t + a + d);
+    osc.connect(g);
+    g.connect(audio.master());
+    osc.start(t);
+    note = { osc: osc, gain: g };
+  }
+
+  function noteOff(fast) {
+    if (!note) return;
+    var n = note; note = null;
+    var r = fast ? 0.01 : Math.max(parseInt(release.value, 10) / 1000, 0.01);
+    audio.ramp(n.gain.gain, 0, r);
+    try { n.osc.stop(audio.ctx().currentTime + r + 0.02); } catch (e) {}
+    setTimeout(function () {
+      try { n.osc.disconnect(); } catch (e) {}
+      try { n.gain.disconnect(); } catch (e) {}
+    }, r * 1000 + 200);
+  }
+
+  function reflectSound(on) { sndBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+
+  sndBtn.addEventListener('click', function () {
+    if (switching) return;
+    if (audio.on()) {
+      reflectSound(false);
+      noteOff(true);
+      switching = true;
+      setTimeout(function () { if (audio.on()) audio.toggle(); switching = false; }, 90);
+    } else {
+      audio.toggle();
+      audio.setVolume(parseInt(volIn.value, 10) / 100);
+      reflectSound(true);
+    }
+  });
+
+  volIn.addEventListener('input', function () {
+    var pct = parseInt(volIn.value, 10);
+    volOut.textContent = pct + '%';
+    audio.setVolume(pct / 100);
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && audio.on()) { noteOff(true); audio.toggle(); reflectSound(false); }
+  });
+
   function press(e) {
     if (e && e.cancelable && e.type !== 'mousedown') e.preventDefault();
     if (mode === 'held') return;
     mode = 'held'; pressT = now();
+    noteOn(vals());
     btn.classList.add('on'); btn.setAttribute('aria-pressed', 'true');
     if (reduce) { setStage('sustain'); render(); }
     else if (!raf) raf = requestAnimationFrame(loop);
@@ -230,6 +353,7 @@
 
   function letGo() {
     if (mode !== 'held') return;
+    noteOff(false);
     btn.classList.remove('on'); btn.setAttribute('aria-pressed', 'false');
     if (reduce) { mode = 'idle'; setStage('silencio'); render(); return; }
     gateLen = now() - pressT; mode = 'rel';

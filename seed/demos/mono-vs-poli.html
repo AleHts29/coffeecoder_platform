@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mono contra poli</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 12px; background: #1B1B1D; color: #EDEDEB;
+         font-family: 'Space Grotesk', system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 52px 1fr 54px; gap: 10px;
+         align-items: center; margin-bottom: 8px; }
+  .row label, .row .label { font-size: 13px; color: #9A9A97; }
+  .value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
+           text-align: right; }
+  input[type=range] { accent-color: #E08E33; width: 100%; margin: 0; }
+  input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .row.off label, .row.off .value { color: #48484A; }
+  .row.off input[type=range] { accent-color: #48484A; }
+
+  .modes { grid-template-columns: 52px 1fr auto; }
+  .seg { display: flex; gap: 6px; }
+  .btn { font-family: inherit; font-size: 13px; font-weight: 500; padding: 6px 12px;
+         background: #242426; border: 1px solid #3A3A3C; border-radius: 6px;
+         color: #EDEDEB; cursor: pointer; }
+  .btn.on { background: #E08E33; border-color: #E08E33; color: #141414; }
+  .btn:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+
+  .keys { position: relative; height: 58px; margin: 10px 0 6px;
+          -webkit-user-select: none; user-select: none; touch-action: none; }
+  .key { position: absolute; top: 0; margin: 0; padding: 0 0 5px; box-sizing: border-box;
+         font-family: inherit; font-size: 11px; color: #9A9A97;
+         display: flex; align-items: flex-end; justify-content: center;
+         cursor: pointer; touch-action: none; }
+  .key.w { height: 58px; width: 14.2857%; background: #242426;
+           border: 1px solid #3A3A3C; border-radius: 0 0 4px 4px; }
+  .key.b { height: 36px; width: 8.2%; background: #1B1B1D; border: 1px solid #3A3A3C;
+           border-radius: 0 0 4px 4px; z-index: 2; font-size: 0; }
+  .key.on { background: #E08E33; border-color: #E08E33; color: #141414; }
+  .key:focus-visible { outline: 2px solid #E08E33; outline-offset: 2px; z-index: 3; }
+
+  canvas { display: block; width: 100%; }
+  .caption { font-size: 12px; color: #8C8C8A; margin: 0 0 4px; }
+  .caption .value { text-align: left; }
+  .foot { font-size: 12px; color: #8C8C8A; margin: 8px 0 0; line-height: 1.4; }
+
+  .audio { display: grid; grid-template-columns: auto 52px 1fr 44px; gap: 10px;
+           align-items: center; margin-top: 10px; }
+  .audio .label { font-size: 12px; color: #8C8C8A; }
+</style>
+</head>
+<body>
+  <div class="row modes">
+    <span class="label" id="modeLbl">Modo</span>
+    <div class="seg" role="group" aria-labelledby="modeLbl">
+      <button id="mono" type="button" class="btn on" aria-pressed="true">Mono</button>
+      <button id="poli" type="button" class="btn" aria-pressed="false">Poli</button>
+    </div>
+    <button id="chord" type="button" class="btn">Acorde</button>
+  </div>
+
+  <div class="row off" id="voicesRow">
+    <label for="voices">Voces</label>
+    <input id="voices" type="range" min="1" max="8" step="1" value="4" disabled>
+    <span class="value" id="voicesOut">1</span>
+  </div>
+
+  <div class="keys" id="keys" role="group" aria-label="Teclado de una octava, do a si">
+    <button type="button" class="key w" data-note="60" style="left:0%" aria-label="Do">C</button>
+    <button type="button" class="key w" data-note="62" style="left:14.2857%" aria-label="Re">D</button>
+    <button type="button" class="key w" data-note="64" style="left:28.5714%" aria-label="Mi">E</button>
+    <button type="button" class="key w" data-note="65" style="left:42.8571%" aria-label="Fa">F</button>
+    <button type="button" class="key w" data-note="67" style="left:57.1428%" aria-label="Sol">G</button>
+    <button type="button" class="key w" data-note="69" style="left:71.4285%" aria-label="La">A</button>
+    <button type="button" class="key w" data-note="71" style="left:85.7142%" aria-label="Si">B</button>
+    <button type="button" class="key b" data-note="61" style="left:10.19%" aria-label="Do sostenido"></button>
+    <button type="button" class="key b" data-note="63" style="left:24.47%" aria-label="Re sostenido"></button>
+    <button type="button" class="key b" data-note="66" style="left:53.04%" aria-label="Fa sostenido"></button>
+    <button type="button" class="key b" data-note="68" style="left:67.33%" aria-label="Sol sostenido"></button>
+    <button type="button" class="key b" data-note="70" style="left:81.61%" aria-label="La sostenido"></button>
+  </div>
+
+  <p class="caption">voces sonando <span class="value" id="countOut">0 / 1</span></p>
+  <canvas id="roll" style="height:140px" role="img"
+          aria-label="Líneas de voz en el tiempo: la altura de cada línea es la altura de la nota. En mono una sola línea salta de nota en nota; en poli cada nota abre su línea y, al pasarse del límite, la voz más vieja se corta."></canvas>
+
+  <div class="audio">
+    <button id="snd" type="button" class="btn" aria-pressed="false">Sonido</button>
+    <label for="vol" class="label">Volumen</label>
+    <input id="vol" type="range" min="0" max="100" step="1" value="15">
+    <span class="value" id="volOut">15%</span>
+  </div>
+
+  <p class="foot">Qué mirar: un bajo mono tiene una sola voz, así que el acorde le queda en la última nota. La polifonía las apila y cobra cada voz en CPU.</p>
+
+<script>
+// --- audio: patrón compartido de docs/DEMOS.md (no modificar) ---
+function createAudio() {
+  var ctx = null, master = null, on = false;
+  function ensure() {
+    if (!ctx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = 0.15;
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  return {
+    on: function () { return on; },
+    ctx: function () { return ctx; },
+    master: function () { return master; },
+    // Habilita o silencia. Devuelve el estado nuevo. Es el gesto que
+    // crea el AudioContext (política de autoplay de los browsers).
+    toggle: function () {
+      on = !on;
+      if (on) ensure(); else if (ctx) ctx.suspend();
+      return on;
+    },
+    setVolume: function (v) { if (master) master.gain.value = v; },
+    suspend: function () { if (ctx && ctx.state === 'running') ctx.suspend(); },
+    // Rampa anti-click: nunca asignar .value de un gain que está sonando.
+    ramp: function (param, value, seconds) {
+      var t = ctx ? ctx.currentTime : 0;
+      param.cancelScheduledValues(t);
+      param.setValueAtTime(param.value, t);
+      param.linearRampToValueAtTime(value, t + (seconds || 0.01));
+    }
+  };
+}
+var audio = createAudio();
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) audio.suspend();
+});
+window.addEventListener('pagehide', function () { audio.suspend(); });
+
+(function () {
+  var monoBtn = document.getElementById('mono');
+  var poliBtn = document.getElementById('poli');
+  var chordBtn = document.getElementById('chord');
+  var voices = document.getElementById('voices');
+  var voicesRow = document.getElementById('voicesRow');
+  var voicesOut = document.getElementById('voicesOut');
+  var countOut = document.getElementById('countOut');
+  var keysEl = document.getElementById('keys');
+  var cv = document.getElementById('roll');
+  var snd = document.getElementById('snd');
+  var vol = document.getElementById('vol');
+  var volOut = document.getElementById('volOut');
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var ACCENT = '#E08E33', MUTED = '#8C8C8A', AXIS = '#2C2C2E', SECOND = '#5A5A5C';
+  var WINDOW = 3.6;      // segundos visibles
+  var HOLD = 1.4;        // cada nota se apaga sola
+  var ATTACK = 0.01;     // 10 ms
+  var RELEASE = 0.12;    // 120 ms
+  var STEAL = 0.015;     // corte audible, pero sin click
+  var PEAK = 0.16;
+  var LO = 59.5, HI = 71.5;
+
+  var poly = false;
+  var live = [];   // voces sonando, de la más vieja a la más nueva
+  var segs = [];   // trazos dibujados
+  var raf = 0, lastT = 0;
+
+  function tnow() { return performance.now() / 1000; }
+  function freq(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+  function limit() { return poly ? parseInt(voices.value, 10) : 1; }
+
+  function keyEls(note) {
+    return keysEl.querySelectorAll('[data-note="' + note + '"]');
+  }
+  function paintKey(note, on) {
+    var els = keyEls(note), i;
+    for (i = 0; i < els.length; i++) els[i].classList.toggle('on', on);
+  }
+  function keyHeld(note) {
+    var i;
+    for (i = 0; i < live.length; i++) if (live[i].note === note) return true;
+    return false;
+  }
+
+  function counts() {
+    countOut.textContent = live.length + ' / ' + limit();
+  }
+
+  function stop(v, cut) {
+    var i = live.indexOf(v);
+    if (i < 0) return;
+    live.splice(i, 1);
+    if (v.timer) { clearTimeout(v.timer); v.timer = 0; }
+    v.seg.t1 = tnow();
+    v.seg.cut = !!cut;
+    if (v.gain && v.osc) {
+      var rel = cut ? STEAL : RELEASE;
+      var a = audio.ctx();
+      audio.ramp(v.gain.gain, 0, rel);
+      try { v.osc.stop(a.currentTime + rel + 0.03); } catch (e) { /* ya detenido */ }
+    }
+    if (!keyHeld(v.note)) paintKey(v.note, false);
+    counts();
+    mark();
+  }
+
+  function start(note) {
+    var t = tnow(), i;
+    for (i = live.length - 1; i >= 0; i--) {
+      if (live[i].note === note) stop(live[i], true);
+    }
+    var jump = null;
+    while (live.length >= limit()) {
+      var old = live[0];
+      if (!poly) jump = old.note;
+      stop(old, true);
+    }
+
+    var seg = { note: note, t0: t, t1: null, cut: false, jump: jump };
+    segs.push(seg);
+    var v = { note: note, seg: seg, osc: null, gain: null, timer: 0 };
+
+    var ctx = audio.ctx();
+    if (audio.on() && ctx) {
+      var g = ctx.createGain();
+      g.gain.value = 0;
+      var o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = freq(note);
+      o.connect(g);
+      g.connect(audio.master());
+      o.start();
+      audio.ramp(g.gain, PEAK, ATTACK);
+      v.osc = o; v.gain = g;
+    }
+    v.timer = setTimeout(function () { stop(v, false); }, HOLD * 1000);
+    live.push(v);
+    paintKey(note, true);
+    counts();
+    mark();
+  }
+
+  function mark() {
+    lastT = tnow();
+    if (reduce) { draw(); return; }
+    if (!raf) raf = requestAnimationFrame(loop);
+  }
+
+  function setup(c) {
+    var dpr = window.devicePixelRatio || 1;
+    var r = c.getBoundingClientRect();
+    var w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    var ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, r.width, r.height);
+    return { ctx: ctx, w: r.width, h: r.height };
+  }
+
+  function draw() {
+    var G = setup(cv), ctx = G.ctx, i;
+    var padL = 8, padR = 8, top = 10, base = G.h - 10;
+    var span = G.w - padL - padR;
+    var end = reduce ? lastT + 0.8 : tnow();
+
+    // limpieza de trazos fuera de la ventana
+    var keep = [];
+    for (i = 0; i < segs.length; i++) {
+      if (segs[i].t1 === null || segs[i].t1 > end - WINDOW) keep.push(segs[i]);
+    }
+    segs = keep;
+
+    function X(t) {
+      var x = padL + (1 - (end - t) / WINDOW) * span;
+      return x < padL ? padL : (x > G.w - padR ? G.w - padR : x);
+    }
+    function Y(n) { return base - (n - LO) / (HI - LO) * (base - top); }
+
+    ctx.strokeStyle = AXIS; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (i = 60; i <= 71; i++) {
+      var gy = Math.round(Y(i)) + 0.5;
+      ctx.moveTo(padL, gy); ctx.lineTo(G.w - padR, gy);
+    }
+    ctx.moveTo(padL + 0.5, top); ctx.lineTo(padL + 0.5, base);
+    ctx.stroke();
+
+    ctx.lineCap = 'butt';
+    for (i = 0; i < segs.length; i++) {
+      var s = segs[i];
+      var x0 = X(s.t0), x1 = X(s.t1 === null ? end : s.t1), y = Y(s.note);
+
+      if (s.jump !== null && s.jump !== undefined && x0 > padL) {
+        ctx.strokeStyle = SECOND; ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x0 + 0.5, Y(s.jump)); ctx.lineTo(x0 + 0.5, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.strokeStyle = s.cut ? SECOND : ACCENT;
+      ctx.lineWidth = s.cut ? 1.5 : 2.4;
+      ctx.beginPath();
+      ctx.moveTo(x0, y); ctx.lineTo(Math.max(x1, x0 + 1), y);
+      ctx.stroke();
+
+      if (s.cut && x1 > padL && x1 < G.w - padR) {
+        ctx.strokeStyle = MUTED; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x1 + 0.5, y - 5); ctx.lineTo(x1 + 0.5, y + 5);
+        ctx.stroke();
+      }
+    }
+  }
+
+  function loop() {
+    raf = 0;
+    draw();
+    if (live.length || segs.length) raf = requestAnimationFrame(loop);
+  }
+
+  function setMode(next) {
+    poly = next;
+    monoBtn.classList.toggle('on', !poly);
+    poliBtn.classList.toggle('on', poly);
+    monoBtn.setAttribute('aria-pressed', poly ? 'false' : 'true');
+    poliBtn.setAttribute('aria-pressed', poly ? 'true' : 'false');
+    voices.disabled = !poly;
+    voicesRow.classList.toggle('off', !poly);
+    voicesOut.textContent = String(limit());
+    while (live.length > limit()) stop(live[0], true);
+    counts();
+    mark();
+  }
+
+  // El visual funciona igual sin sonido: el audio es la capa de arriba.
+  function trigger(note) { start(note); }
+
+  var kids = keysEl.querySelectorAll('.key'), k;
+  for (k = 0; k < kids.length; k++) {
+    (function (el) {
+      var note = parseInt(el.getAttribute('data-note'), 10);
+      function hit(e) {
+        if (e && e.cancelable && e.type !== 'mousedown') e.preventDefault();
+        trigger(note);
+      }
+      if (window.PointerEvent) el.addEventListener('pointerdown', hit);
+      else {
+        el.addEventListener('mousedown', hit);
+        el.addEventListener('touchstart', hit, { passive: false });
+      }
+      el.addEventListener('keydown', function (e) {
+        if (e.key === ' ' || e.key === 'Spacebar' || e.key === 'Enter') {
+          if (e.repeat) { e.preventDefault(); return; }
+          e.preventDefault();
+          trigger(note);
+        }
+      });
+    })(kids[k]);
+  }
+
+  monoBtn.addEventListener('click', function () { setMode(false); });
+  poliBtn.addEventListener('click', function () { setMode(true); });
+  chordBtn.addEventListener('click', function () {
+    trigger(60); trigger(64); trigger(67);
+  });
+
+  voices.addEventListener('input', function () {
+    voicesOut.textContent = String(limit());
+    while (live.length > limit()) stop(live[0], true);
+    counts();
+    mark();
+  });
+
+  snd.addEventListener('click', function () {
+    var on = audio.toggle();
+    snd.classList.toggle('on', on);
+    snd.setAttribute('aria-pressed', on ? 'true' : 'false');
+    if (on) audio.setVolume(parseInt(vol.value, 10) / 100);
+  });
+  vol.addEventListener('input', function () {
+    var v = parseInt(vol.value, 10);
+    volOut.textContent = v + '%';
+    audio.setVolume(v / 100);
+  });
+
+  window.addEventListener('resize', draw);
+
+  counts();
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hard sync de osciladores</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 12px; background: #1B1B1D; color: #EDEDEB;
+         font-family: 'Space Grotesk', system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 64px 1fr 60px; gap: 10px;
+         align-items: center; margin-bottom: 8px; }
+  .row label { font-size: 13px; color: #9A9A97; }
+  .value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
+           text-align: right; }
+  input[type=range] { accent-color: #E08E33; width: 100%; margin: 0; }
+  input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .btn { font-family: inherit; font-size: 12px; line-height: 1; padding: 6px 10px;
+         background: #242426; color: #EDEDEB; border: 1px solid #3A3A3C;
+         border-radius: 6px; cursor: pointer; }
+  .btn[aria-pressed="true"] { background: #E08E33; border-color: #E08E33; color: #141414; }
+  .btn:disabled { background: #1B1B1D; color: #48484A; border-color: #2C2C2E; cursor: default; }
+  .btn:focus-visible { outline: 2px solid #E08E33; outline-offset: 2px; }
+  .btns { display: flex; gap: 6px; }
+  .soundbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+              margin-bottom: 8px; }
+  .audio { display: flex; align-items: center; gap: 8px; flex: 1 1 210px; }
+  .audio input[type=range] { flex: 1; }
+  .audio .value { min-width: 42px; }
+  .audio .label { font-size: 12px; color: #8C8C8A; }
+  .caption { font-size: 12px; color: #8C8C8A; margin: 10px 0 4px; }
+  .caption .value { text-align: left; }
+  .foot { font-size: 12px; color: #8C8C8A; margin: 10px 0 0; line-height: 1.4; }
+  canvas { display: block; width: 100%; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+  <div class="row">
+    <label for="ratio">Ratio</label>
+    <input id="ratio" type="range" min="0" max="100" step="1" value="0">
+    <span class="value" id="ratioOut">0%</span>
+  </div>
+  <div class="row">
+    <span class="row-label" id="shapeLbl" style="font-size:13px;color:#9A9A97">Esclavo</span>
+    <div class="btns" role="group" aria-labelledby="shapeLbl">
+      <button id="saw" type="button" class="btn" aria-pressed="true">Sawtooth</button>
+      <button id="sqr" type="button" class="btn" aria-pressed="false">Square</button>
+    </div>
+    <span></span>
+  </div>
+
+  <div class="soundbar">
+    <button id="play" type="button" class="btn" aria-pressed="false" disabled>Tocar A3</button>
+    <div class="audio">
+      <button id="snd" type="button" class="btn" aria-pressed="false">Sonido</button>
+      <label for="vol" class="label">Volumen</label>
+      <input id="vol" type="range" min="0" max="100" step="1" value="15">
+      <span class="value" id="volOut">15%</span>
+    </div>
+  </div>
+
+  <p class="caption">Esclavo sobre 2 ciclos del maestro · esclavo <span class="value" id="mulOut">x1.00</span></p>
+  <canvas id="wave" style="height:120px" role="img" aria-label="Forma de onda del oscilador esclavo con marcas verticales donde el maestro reinicia su fase"></canvas>
+  <p class="caption">Armónicos</p>
+  <canvas id="spec" style="height:50px" role="img" aria-label="Barras de amplitud de los primeros armónicos de la onda sincronizada"></canvas>
+
+  <p class="foot">Qué mirar: el sync suma armónicos sin cambiar la nota — sigue siendo A3, 220 Hz. Barrer el Ratio de punta a punta es el clásico <em>sync sweep</em>.</p>
+
+<script>
+// --- audio: patrón compartido de docs/DEMOS.md (no modificar) ---
+function createAudio() {
+  var ctx = null, master = null, on = false;
+  function ensure() {
+    if (!ctx) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = 0.15;
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  return {
+    on: function () { return on; },
+    ctx: function () { return ctx; },
+    master: function () { return master; },
+    // Habilita o silencia. Devuelve el estado nuevo. Es el gesto que
+    // crea el AudioContext (política de autoplay de los browsers).
+    toggle: function () {
+      on = !on;
+      if (on) ensure(); else if (ctx) ctx.suspend();
+      return on;
+    },
+    setVolume: function (v) { if (master) master.gain.value = v; },
+    suspend: function () { if (ctx && ctx.state === 'running') ctx.suspend(); },
+    // Rampa anti-click: nunca asignar .value de un gain que está sonando.
+    ramp: function (param, value, seconds) {
+      var t = ctx ? ctx.currentTime : 0;
+      param.cancelScheduledValues(t);
+      param.setValueAtTime(param.value, t);
+      param.linearRampToValueAtTime(value, t + (seconds || 0.01));
+    }
+  };
+}
+var audio = createAudio();
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) audio.suspend();
+});
+window.addEventListener('pagehide', function () { audio.suspend(); });
+
+(function () {
+  var ratio = document.getElementById('ratio');
+  var ratioOut = document.getElementById('ratioOut');
+  var mulOut = document.getElementById('mulOut');
+  var sawBtn = document.getElementById('saw');
+  var sqrBtn = document.getElementById('sqr');
+  var playBtn = document.getElementById('play');
+  var sndBtn = document.getElementById('snd');
+  var vol = document.getElementById('vol');
+  var volOut = document.getElementById('volOut');
+  var waveCv = document.getElementById('wave');
+  var specCv = document.getElementById('spec');
+
+  var ACCENT = '#E08E33', AXIS = '#2C2C2E', SECOND = '#5A5A5C', MUTED = '#8C8C8A';
+  var BASE_HZ = 220;          // A3: la altura la fija el maestro y no cambia nunca
+  var MAX_MUL = 5;            // Ratio 100% => el esclavo corre a 5x el maestro
+  var HARMONICS = 56;         // banda útil: 56 x 220 Hz ~ 12.3 kHz
+  var DFT_N = 2048;
+  var shape = 'saw';
+
+  // ---- forma base del esclavo, fase normalizada en [0,1) ----
+  function base(p) {
+    p = p - Math.floor(p);
+    return shape === 'saw' ? (2 * p - 1) : (p < 0.5 ? 1 : -1);
+  }
+  function mul() { return 1 + (parseInt(ratio.value, 10) / 100) * (MAX_MUL - 1); }
+  // Valor del esclavo sincronizado, con u = fase del MAESTRO en [0,1).
+  // El maestro reinicia al esclavo en cada u entero: por eso la fase del
+  // esclavo es u*mul y arranca de cero en cada ciclo del maestro.
+  function synced(u, m) { return base((u - Math.floor(u)) * m); }
+
+  // ---- tabla de armónicos ----
+  // APROXIMACIÓN DE AUDIO: Web Audio no tiene hard sync nativo (no se puede
+  // reiniciar la fase de un OscillatorNode en marcha). Pero la onda con hard
+  // sync es EXACTAMENTE periódica en el período del maestro, sea cual sea el
+  // ratio, porque la fase del esclavo se reinicia en cada ciclo. Así que
+  // calculamos por DFT los coeficientes de Fourier de UN período del maestro
+  // y los mandamos a createPeriodicWave(): un solo oscilador a 220 Hz
+  // reproduce la misma forma, con la síntesis limitada en banda del browser.
+  // Lo único aproximado es el truncado a 56 armónicos (mata el alias de los
+  // saltos) con ventana sigma de Lánczos para suavizar el Gibbs. La tabla se
+  // recalcula cada vez que cambia el Ratio o la forma del esclavo.
+  function harmonics(m) {
+    var f = new Float64Array(DFT_N), k, n;
+    for (k = 0; k < DFT_N; k++) f[k] = synced(k / DFT_N, m);
+    var real = new Float32Array(HARMONICS + 1);
+    var imag = new Float32Array(HARMONICS + 1);
+    var mag = new Float64Array(HARMONICS + 1);
+    for (n = 1; n <= HARMONICS; n++) {
+      var dth = 2 * Math.PI * n / DFT_N;
+      var c = Math.cos(dth), s = Math.sin(dth);
+      var cs = 1, sn = 0, a = 0, b = 0, t;
+      for (k = 0; k < DFT_N; k++) {
+        a += f[k] * cs;
+        b += f[k] * sn;
+        t = cs * c - sn * s; sn = sn * c + cs * s; cs = t;
+      }
+      a = 2 * a / DFT_N; b = 2 * b / DFT_N;
+      var x = Math.PI * n / (HARMONICS + 1);
+      var sigma = Math.sin(x) / x;        // ventana de Lánczos
+      real[n] = a * sigma; imag[n] = b * sigma;
+      mag[n] = Math.sqrt(a * a + b * b);
+    }
+    return { real: real, imag: imag, mag: mag };
+  }
+
+  // ---- canvas ----
+  function setup(c, axis) {
+    var dpr = window.devicePixelRatio || 1;
+    var r = c.getBoundingClientRect();
+    var w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    var ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, r.width, r.height);
+    if (axis) {
+      ctx.strokeStyle = AXIS; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, Math.round(r.height / 2) + 0.5);
+      ctx.lineTo(r.width, Math.round(r.height / 2) + 0.5);
+      ctx.stroke();
+    }
+    return { ctx: ctx, w: r.width, h: r.height };
+  }
+
+  function drawWave(m) {
+    var g = setup(waveCv, true);
+    var mid = g.h / 2, amp = g.h / 2 - 6;
+    var CYCLES = 2;
+    // marcas del maestro: solo hay reinicio audible con Ratio > 0
+    if (parseInt(ratio.value, 10) > 0) {
+      g.ctx.strokeStyle = SECOND; g.ctx.lineWidth = 1;
+      for (var i = 0; i <= CYCLES; i++) {
+        var x = Math.round(g.w * i / CYCLES) + (i === CYCLES ? -0.5 : 0.5);
+        g.ctx.beginPath();
+        g.ctx.moveTo(x, 2); g.ctx.lineTo(x, g.h - 2);
+        g.ctx.stroke();
+      }
+    }
+    g.ctx.strokeStyle = ACCENT; g.ctx.lineWidth = 1.6;
+    g.ctx.lineJoin = 'round';
+    g.ctx.beginPath();
+    var steps = Math.max(240, Math.round(g.w * 3));
+    for (var j = 0; j <= steps; j++) {
+      var u = (j / steps) * CYCLES;
+      var y = mid - synced(u, m) * amp;
+      if (j === 0) g.ctx.moveTo(0, y); else g.ctx.lineTo((j / steps) * g.w, y);
+    }
+    g.ctx.stroke();
+  }
+
+  function drawSpec(mag) {
+    var g = setup(specCv, false);
+    var shown = 24, max = 0, n;
+    for (n = 1; n <= shown; n++) if (mag[n] > max) max = mag[n];
+    if (max <= 0) max = 1;
+    g.ctx.strokeStyle = AXIS; g.ctx.lineWidth = 1;
+    g.ctx.beginPath();
+    g.ctx.moveTo(0, g.h - 0.5); g.ctx.lineTo(g.w, g.h - 0.5); g.ctx.stroke();
+    var slot = g.w / shown, bw = Math.max(2, slot - 3);
+    g.ctx.fillStyle = ACCENT;
+    for (n = 1; n <= shown; n++) {
+      var hgt = Math.max(1, (mag[n] / max) * (g.h - 4));
+      g.ctx.fillRect((n - 1) * slot + (slot - bw) / 2, g.h - 1 - hgt, bw, hgt);
+    }
+  }
+
+  // ---- audio ----
+  var wave = null, table = null, osc = null, noteGain = null;
+
+  function buildWave(m) {
+    table = harmonics(m);
+    var ctx = audio.ctx();
+    wave = ctx ? ctx.createPeriodicWave(table.real, table.imag) : null;
+    if (osc && wave) osc.setPeriodicWave(wave);
+  }
+
+  function noteOn() {
+    var ctx = audio.ctx();
+    if (!audio.on() || !ctx || osc) return;
+    if (!wave) buildWave(mul());
+    osc = ctx.createOscillator();
+    osc.setPeriodicWave(wave);
+    osc.frequency.value = BASE_HZ;
+    noteGain = ctx.createGain();
+    noteGain.gain.value = 0;
+    osc.connect(noteGain);
+    noteGain.connect(audio.master());
+    osc.start();
+    audio.ramp(noteGain.gain, 0.8, 0.012);
+    playBtn.setAttribute('aria-pressed', 'true');
+  }
+
+  function noteOff() {
+    if (!osc) return;
+    var ctx = audio.ctx(), o = osc, gn = noteGain;
+    osc = null; noteGain = null;
+    audio.ramp(gn.gain, 0, 0.02);
+    try { o.stop(ctx.currentTime + 0.06); } catch (e) { /* ya detenido */ }
+    setTimeout(function () { try { o.disconnect(); gn.disconnect(); } catch (e) {} }, 200);
+    playBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  // ---- render ----
+  function draw() {
+    var m = mul();
+    ratioOut.textContent = ratio.value + '%';
+    mulOut.textContent = 'x' + m.toFixed(2);
+    buildWave(m);
+    drawWave(m);
+    drawSpec(table.mag);
+  }
+
+  ratio.addEventListener('input', draw);
+  window.addEventListener('resize', function () {
+    var m = mul();
+    drawWave(m);
+    if (table) drawSpec(table.mag);
+  });
+
+  function setShape(next) {
+    shape = next;
+    sawBtn.setAttribute('aria-pressed', String(next === 'saw'));
+    sqrBtn.setAttribute('aria-pressed', String(next === 'sqr'));
+    draw();
+  }
+  sawBtn.addEventListener('click', function () { setShape('saw'); });
+  sqrBtn.addEventListener('click', function () { setShape('sqr'); });
+
+  sndBtn.addEventListener('click', function () {
+    var on = audio.toggle();
+    sndBtn.setAttribute('aria-pressed', String(on));
+    playBtn.disabled = !on;
+    if (on) { audio.setVolume(parseInt(vol.value, 10) / 100); buildWave(mul()); }
+    else noteOff();
+  });
+  vol.addEventListener('input', function () {
+    volOut.textContent = vol.value + '%';
+    audio.setVolume(parseInt(vol.value, 10) / 100);
+  });
+
+  playBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); noteOn(); });
+  playBtn.addEventListener('pointerup', noteOff);
+  playBtn.addEventListener('pointercancel', noteOff);
+  playBtn.addEventListener('pointerleave', noteOff);
+  playBtn.addEventListener('keydown', function (e) {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) noteOn(); }
+  });
+  playBtn.addEventListener('keyup', function (e) {
+    if (e.key === ' ' || e.key === 'Enter') noteOff();
+  });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) noteOff(); });
+
+  // Sin animación continua: la demo se redibuja solo cuando el alumno toca
+  // un control, así que cumple prefers-reduced-motion en los dos modos.
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -24,6 +24,15 @@
   input[type=range] { accent-color: #E08E33; width: 100%; margin: 0; }
   input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
   input[type=range]:disabled { accent-color: #48484A; }
+  .audio { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+  .audio .btn { font-family: inherit; font-size: 13px; line-height: 1; padding: 8px 10px;
+                border-radius: 6px; cursor: pointer; background: #242426;
+                border: 1px solid #3A3A3C; color: #EDEDEB; }
+  .audio .btn[aria-pressed="true"] { background: #E08E33; border-color: #E08E33; color: #141414; }
+  .audio .btn:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .audio .label { font-size: 12px; color: #8C8C8A; }
+  .audio input[type=range] { width: 110px; flex: 0 1 110px; }
+  .audio .value { width: 38px; text-align: right; color: #8C8C8A; }
   .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
   .caption { font-size: 12px; color: #8C8C8A; margin: 0 0 4px; }
   canvas { display: block; width: 100%; height: 200px; }
@@ -44,6 +53,13 @@
     <label for="harm">Armónicos</label>
     <input id="harm" type="range" min="1" max="16" step="1" value="8">
     <span class="value" id="harmOut">8</span>
+  </div>
+
+  <div class="audio">
+    <button id="snd" type="button" class="btn" aria-pressed="false">Sonido</button>
+    <label for="vol" class="label">Volumen</label>
+    <input id="vol" type="range" min="0" max="100" step="1" value="15">
+    <span class="value" id="volOut">15%</span>
   </div>
 
   <div class="panels">
@@ -200,7 +216,150 @@
 
     drawWave();
     drawSpec();
+    syncAudio();
   }
+
+  // --- audio: patrón compartido de docs/DEMOS.md (no modificar) ---
+  function createAudio() {
+    var ctx = null, master = null, on = false;
+    function ensure() {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.15;
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    }
+    return {
+      on: function () { return on; },
+      ctx: function () { return ctx; },
+      master: function () { return master; },
+      // Habilita o silencia. Devuelve el estado nuevo. Es el gesto que
+      // crea el AudioContext (política de autoplay de los browsers).
+      toggle: function () {
+        on = !on;
+        if (on) ensure(); else if (ctx) ctx.suspend();
+        return on;
+      },
+      setVolume: function (v) { if (master) master.gain.value = v; },
+      suspend: function () { if (ctx && ctx.state === 'running') ctx.suspend(); },
+      // Rampa anti-click: nunca asignar .value de un gain que está sonando.
+      ramp: function (param, value, seconds) {
+        var t = ctx ? ctx.currentTime : 0;
+        param.cancelScheduledValues(t);
+        param.setValueAtTime(param.value, t);
+        param.linearRampToValueAtTime(value, t + (seconds || 0.01));
+      }
+    };
+  }
+  var audio = createAudio();
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) audio.suspend();
+  });
+  window.addEventListener('pagehide', function () { audio.suspend(); });
+
+  // --- tono: 220 Hz (A3) con la MISMA forma y los MISMOS N parciales que dibuja el canvas ---
+  var FREQ = 220;
+  var sndBtn = document.getElementById('snd');
+  var volIn = document.getElementById('vol');
+  var volOut = document.getElementById('volOut');
+  var voice = null, noiseBuf = null, switching = false;
+
+  function noiseBuffer(ctx) {
+    if (noiseBuf) return noiseBuf;
+    var len = Math.floor(ctx.sampleRate * 2);
+    noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var data = noiseBuf.getChannelData(0), rn = prng(20260921);
+    for (var i = 0; i < len; i++) data[i] = rn() * 2 - 1;
+    return noiseBuf;
+  }
+
+  function applyWave(osc, ctx) {
+    // sine: el tipo nativo ya es el único parcial que dibuja el canvas.
+    if (shape === 'sine') { osc.type = 'sine'; return; }
+    // El resto: PeriodicWave con los mismos coeficientes de coef(), hasta
+    // el armónico del slider, para que se oiga exactamente la suma que se ve.
+    var real = new Float32Array(MAXH + 1), imag = new Float32Array(MAXH + 1);
+    for (var n = 1; n <= harm; n++) imag[n] = coef(n);
+    osc.setPeriodicWave(ctx.createPeriodicWave(real, imag));
+  }
+
+  function startTone() {
+    if (!audio.on() || voice) return;
+    var ctx = audio.ctx();
+    var g = ctx.createGain();
+    g.gain.value = 0;
+    g.connect(audio.master());
+    var src, kind;
+    if (shape === 'noise') {
+      kind = 'noise';
+      src = ctx.createBufferSource();
+      src.buffer = noiseBuffer(ctx);
+      src.loop = true;
+    } else {
+      kind = 'tone';
+      src = ctx.createOscillator();
+      src.frequency.value = FREQ;
+      applyWave(src, ctx);
+    }
+    src.connect(g);
+    src.start();
+    voice = { kind: kind, src: src, gain: g };
+    audio.ramp(g.gain, kind === 'noise' ? 0.45 : 0.9, 0.012);
+  }
+
+  function stopTone() {
+    if (!voice) return;
+    var v = voice; voice = null;
+    var ctx = audio.ctx();
+    audio.ramp(v.gain.gain, 0, 0.012);
+    try { v.src.stop(ctx.currentTime + 0.06); } catch (e) {}
+    setTimeout(function () {
+      try { v.src.disconnect(); } catch (e) {}
+      try { v.gain.disconnect(); } catch (e) {}
+    }, 150);
+  }
+
+  function syncAudio() {
+    if (!audio.on()) return;
+    if (!voice) { startTone(); return; }
+    var want = shape === 'noise' ? 'noise' : 'tone';
+    if (voice.kind !== want) { stopTone(); startTone(); return; }
+    if (want === 'tone') {
+      applyWave(voice.src, audio.ctx());
+      voice.src.frequency.value = FREQ;
+    }
+  }
+
+  function reflectSound(on) { sndBtn.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+
+  sndBtn.addEventListener('click', function () {
+    if (switching) return;
+    if (audio.on()) {
+      reflectSound(false);
+      stopTone();
+      switching = true;
+      setTimeout(function () { if (audio.on()) audio.toggle(); switching = false; }, 90);
+    } else {
+      audio.toggle();
+      audio.setVolume(parseInt(volIn.value, 10) / 100);
+      reflectSound(true);
+      startTone();
+    }
+  });
+
+  volIn.addEventListener('input', function () {
+    var pct = parseInt(volIn.value, 10);
+    volOut.textContent = pct + '%';
+    audio.setVolume(pct / 100);
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && audio.on()) { stopTone(); audio.toggle(); reflectSound(false); }
+  });
 
   btns.forEach(function (b) {
     b.addEventListener('click', function () {

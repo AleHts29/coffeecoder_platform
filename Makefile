@@ -65,8 +65,9 @@ seed: ## Carga contenido de desarrollo (db/seed/*.sql, idempotente)
 	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -q -f db/seed/articles.sql
 	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -q -f db/seed/curso-produccion-musical.sql
 
-.PHONY: seed-produccion-musical
-seed-produccion-musical: ## Regenera el seed del curso de producción musical desde seed/
+.PHONY: seed-gen
+seed-gen: ## Regenera los seeds de contenido desde seed/ (artículos y demos)
+	python3 scripts/gen-seed-articles.py
 	python3 scripts/gen-seed-produccion-musical.py
 
 .PHONY: dev-pay
