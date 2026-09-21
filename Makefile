@@ -65,6 +65,10 @@ seed: ## Carga contenido de desarrollo (db/seed/*.sql, idempotente)
 	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -q -f db/seed/articles.sql
 	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -q -f db/seed/curso-produccion-musical.sql
 
+.PHONY: seed-produccion-musical
+seed-produccion-musical: ## Regenera el seed del curso de producción musical desde seed/
+	python3 scripts/gen-seed-produccion-musical.py
+
 .PHONY: dev-pay
 dev-pay: ## Aprueba una orden con el provider fake: make dev-pay ORDER=<uuid>
 	@test -n "$(ORDER)" || (echo "uso: make dev-pay ORDER=<uuid>"; exit 1)
@@ -94,8 +98,8 @@ test: test-db ## Tests (unitarios + integración contra coffeecoder_test)
 	@TEST_DATABASE_URL="$(TEST_DB_URL)" $(GO) test ./...
 
 .PHONY: dev-videos
-dev-videos: ## Marca las lecciones del seed como 'ready' con assets fake (VIDEO_PROVIDER=fake)
-	psql "$(DB_URL)" -Atc "UPDATE lessons SET video_provider='bunny', video_asset_id='fake-'||id, video_status='ready' WHERE video_asset_id IS NULL"
+dev-videos: ## Marca las lecciones de video como 'ready' con assets fake (VIDEO_PROVIDER=fake)
+	psql "$(DB_URL)" -Atc "UPDATE lessons SET video_provider='bunny', video_asset_id='fake-'||id, video_status='ready' WHERE kind='video' AND video_asset_id IS NULL"
 
 .PHONY: vet
 vet: ## go vet

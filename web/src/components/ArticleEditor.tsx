@@ -16,7 +16,8 @@ type Props = {
 // el mismo componente que ve el alumno. En mobile, tabs.
 export function ArticleEditor({ value, onChange, demos }: Props) {
   const area = useRef<HTMLTextAreaElement>(null)
-  const file = useRef<HTMLInputElement>(null)
+  const image = useRef<HTMLInputElement>(null)
+  const attach = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<'write' | 'preview'>('write')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,14 +42,15 @@ export function ArticleEditor({ value, onChange, demos }: Props) {
     })
   }
 
-  async function onFile(f: File) {
+  async function onFile(f: File, kind: 'image' | 'attachment') {
     setBusy(true)
     setError(null)
     try {
-      const { url } = await admin.uploadImage(f)
-      insert(`\n![${f.name.replace(/\.[^.]+$/, '')}](${url})\n`)
+      const { url } = await admin.upload(f)
+      const name = f.name.replace(/\.[^.]+$/, '')
+      insert(kind === 'image' ? `\n![${name}](${url})\n` : `\n[${f.name}](${url})\n`)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'no pudimos subir la imagen')
+      setError(err instanceof ApiError ? err.message : 'no pudimos subir el archivo')
     } finally {
       setBusy(false)
     }
@@ -90,19 +92,34 @@ export function ArticleEditor({ value, onChange, demos }: Props) {
           </select>
         </label>
         <input
-          ref={file}
+          ref={image}
           type="file"
           accept="image/*"
           className="sr-only"
           aria-label="Elegir imagen"
           onChange={(e) => {
             const f = e.target.files?.[0]
-            if (f) void onFile(f)
+            if (f) void onFile(f, 'image')
             e.target.value = ''
           }}
         />
-        <Button variant="ghost" className="h-9" onClick={() => file.current?.click()} disabled={busy}>
+        <Button variant="ghost" className="h-9" onClick={() => image.current?.click()} disabled={busy}>
           {busy ? 'Subiendo…' : 'Subir imagen'}
+        </Button>
+        <input
+          ref={attach}
+          type="file"
+          accept=".zip,.pdf,audio/*"
+          className="sr-only"
+          aria-label="Elegir archivo adjunto"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void onFile(f, 'attachment')
+            e.target.value = ''
+          }}
+        />
+        <Button variant="ghost" className="h-9" onClick={() => attach.current?.click()} disabled={busy}>
+          Adjuntar archivo
         </Button>
         <span className="flex-1" />
         <div role="tablist" className="flex gap-1 border-b-[0.5px] border-border lg:hidden">

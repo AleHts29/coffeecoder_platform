@@ -2,6 +2,7 @@ package media
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -44,7 +45,7 @@ func (h *Handler) MountWebhooks(r chi.Router) {
 func (h *Handler) MountAdmin(r chi.Router) {
 	r.Post("/lessons/{id}/video", h.startUpload)
 	r.Post("/lessons/{id}/video/sync", h.syncVideo)
-	r.Post("/images", h.uploadImage)
+	r.Post("/uploads", h.upload)
 }
 
 // --- DTOs ---
@@ -162,11 +163,13 @@ func (h *Handler) syncVideo(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// uploadImage recibe el archivo crudo en el body (Content-Type de la
-// imagen) y devuelve la URL pública para pegar en el Markdown.
-func (h *Handler) uploadImage(w http.ResponseWriter, r *http.Request) {
+// upload recibe el archivo crudo en el body (con su Content-Type) y
+// devuelve la URL pública para pegar en el Markdown de un artículo:
+// imágenes y adjuntos (zip de un proyecto, PDF, audio de ejemplo).
+func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
-	data, err := io.ReadAll(io.LimitReader(r.Body, MaxImageBytes+1))
+	limit := MaxBytesFor(contentType)
+	data, err := io.ReadAll(io.LimitReader(r.Body, int64(limit)+1))
 	if err != nil {
 		httpx.Error(w, http.StatusBadRequest, "no pudimos leer el archivo")
 		return
@@ -175,17 +178,17 @@ func (h *Handler) uploadImage(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, "el archivo está vacío")
 		return
 	}
-	if len(data) > MaxImageBytes {
-		httpx.Error(w, http.StatusRequestEntityTooLarge, "la imagen supera los 5 MB")
+	if len(data) > limit {
+		httpx.Error(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("el archivo supera los %d MB", limit>>20))
 		return
 	}
 	url, err := h.images.Put(r.Context(), data, contentType)
 	if err != nil {
 		if strings.Contains(err.Error(), "no soportado") {
-			httpx.Error(w, http.StatusBadRequest, "formato no soportado: usá JPG, PNG, WebP, GIF, AVIF o SVG")
+			httpx.Error(w, http.StatusBadRequest, "formato no soportado: imágenes (JPG, PNG, WebP, GIF, AVIF, SVG), ZIP, PDF o audio")
 			return
 		}
-		h.fail(w, "upload image", err)
+		h.fail(w, "upload", err)
 		return
 	}
 	httpx.JSON(w, http.StatusCreated, map[string]string{"url": url})

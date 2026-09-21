@@ -87,10 +87,14 @@ propia (`…-AB…`).
   quizzes, que está fuera del MVP). Las tres pasan `docs/DEMOS.md`.
 - Las fuentes editables están en `seed/produccion-musical/*.md` y
   `seed/demos/*.html`; el `.sql` se regenera desde ahí.
-- **Pendiente del dueño:** subir los tres videos, definir el precio
-  final, decidir si va en alguna carrera, y el contenido de los módulos
-  2 a 16. El `.zip` del proyecto de clase queda anotado como
-  `<!-- PENDIENTE -->` porque la plataforma no tiene adjuntos.
+- El **proyecto de clase** (.zip de 18 MB) está subido y linkeado desde
+  la consigna de la lección 7.
+- El seed deja el curso en `draft`. En la base local de desarrollo está
+  **publicado** para poder recorrerlo, y los tres videos usan el asset
+  de ejemplo de `make dev-videos` (`VIDEO_PROVIDER=fake`).
+- **Pendiente del dueño:** grabar y subir los tres videos, definir el
+  precio final, decidir si va en alguna carrera, y el contenido de los
+  módulos 2 a 16 (llegan de a poco).
 
 ## Lecciones de lectura y demos (2026-09-21)
 
@@ -113,9 +117,11 @@ propia (`…-AB…`).
 - **Progreso.** Los artículos no mandan heartbeats (el endpoint responde
   400). Se completan al entrar el final en viewport o a mano, una sola
   vez: completar de nuevo no vuelve a sumar actividad.
-- **Imágenes.** `POST /admin/images` guarda en Bunny Storage
+- **Imágenes y adjuntos.** `POST /admin/uploads` guarda en Bunny Storage
   (`IMAGE_PROVIDER=bunny`) o en disco local servido en `/uploads`
-  (`local`, solo development).
+  (`local`, solo development). Acepta imágenes (5 MB) y adjuntos —zip,
+  PDF, audio— (64 MB). El editor tiene "Subir imagen" y "Adjuntar
+  archivo": el primero pega `![](url)`, el segundo un link Markdown.
 
 ## API (resumen)
 
@@ -172,10 +178,14 @@ Errores siempre `{ "error": "mensaje en español" }`.
 
 ## Limitaciones conocidas
 
-- **Imágenes de artículos sin proteger.** Van por CDN con nombre
-  aleatorio (`/2026/09/<32 hex>.png`): no se adivinan, pero quien tenga
-  el link la ve sin comprar el curso. El texto y las demos sí están
-  protegidos. Si hiciera falta, se resuelve con URL firmada como el video.
+- **Imágenes y adjuntos sin proteger.** Van por CDN con nombre aleatorio
+  (`/2026/09/<32 hex>.zip`): no se adivinan, pero quien tenga el link lo
+  baja sin comprar el curso. El texto y las demos sí están protegidos.
+  Si hiciera falta, se resuelve con URL firmada como el video.
+- **Los adjuntos subidos en desarrollo son locales.** El link del zip del
+  curso de música apunta a `/uploads/...` de esta máquina; al desplegar
+  hay que volver a subirlo con `IMAGE_PROVIDER=bunny` y actualizar el
+  link en `seed/produccion-musical/07-proyecto.md`.
 - Una demo borrada deja su `::demo[slug]` en los textos que la usaban;
   el alumno no ve nada ahí y el admin ve el aviso en la preview.
 - Sin guardado de posición de scroll en artículos ni auto-alto de los

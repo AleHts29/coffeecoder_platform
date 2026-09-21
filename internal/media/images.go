@@ -17,8 +17,34 @@ import (
 	"github.com/alejandro/coffeecoder/internal/config"
 )
 
-// MaxImageBytes: tope de una imagen de artículo.
-const MaxImageBytes = 5 << 20
+// Topes de subida de material de artículo. Las imágenes son chicas; los
+// adjuntos (el proyecto de un DAW, por ejemplo) pesan bastante más.
+const (
+	MaxImageBytes = 5 << 20
+	MaxFileBytes  = 64 << 20
+)
+
+// fileExt son los adjuntos que puede llevar un artículo además de imágenes.
+var fileExt = map[string]string{
+	"application/zip":              ".zip",
+	"application/x-zip-compressed": ".zip",
+	"application/pdf":              ".pdf",
+	"audio/mpeg":                   ".mp3",
+	"audio/wav":                    ".wav",
+	"audio/x-wav":                  ".wav",
+}
+
+// MaxBytesFor devuelve el tope según el tipo declarado.
+func MaxBytesFor(contentType string) int {
+	if _, ok := imageExt[normalizeType(contentType)]; ok {
+		return MaxImageBytes
+	}
+	return MaxFileBytes
+}
+
+func normalizeType(contentType string) string {
+	return strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+}
 
 var imageExt = map[string]string{
 	"image/jpeg":    ".jpg",
@@ -29,18 +55,21 @@ var imageExt = map[string]string{
 	"image/svg+xml": ".svg",
 }
 
-// ImageStore guarda las imágenes que el admin pega en un artículo. No
-// llevan URL firmada: van por CDN con nombre aleatorio (limitación
-// conocida, documentada en ESTADO.md).
+// ImageStore guarda el material que el admin pega en un artículo
+// (imágenes y adjuntos). No lleva URL firmada: va por CDN con nombre
+// aleatorio (limitación conocida, documentada en ESTADO.md).
 type ImageStore interface {
 	Put(ctx context.Context, data []byte, contentType string) (url string, err error)
 }
 
 // randomName evita adivinar URLs de imágenes de cursos pagos.
 func randomName(contentType string) (string, error) {
-	ext, ok := imageExt[strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))]
+	t := normalizeType(contentType)
+	ext, ok := imageExt[t]
 	if !ok {
-		return "", fmt.Errorf("media: tipo de imagen no soportado (%s)", contentType)
+		if ext, ok = fileExt[t]; !ok {
+			return "", fmt.Errorf("media: tipo de archivo no soportado (%s)", contentType)
+		}
 	}
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {

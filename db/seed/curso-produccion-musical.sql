@@ -1,12 +1,12 @@
 -- CoffeeCoder · seed del curso "Producción Musical con Ableton" (desarrollo).
+-- GENERADO por scripts/gen-seed-produccion-musical.py. No editar a mano:
+-- editá seed/produccion-musical/*.md y seed/demos/*.html y regeneralo.
 -- Idempotente: UUIDs fijos + ON CONFLICT. Se aplica después de dev.sql.
 -- Serie de UUIDs propia, fuera del rango del seed de dev:
 --   curso   00000000-0000-4000-8000-AB0000000001
 --   módulos 00000000-0000-4000-8000-AB010000NNNN
 --   lección 00000000-0000-4000-8000-AB02MM0000NN
 --   demos   00000000-0000-4000-8000-AB0300000NNN
--- Los cuerpos de los artículos se editan en seed/produccion-musical/*.md
--- y las demos en seed/demos/*.html; este archivo se regenera desde ahí.
 
 BEGIN;
 
@@ -14,9 +14,9 @@ BEGIN;
 INSERT INTO courses (id, slug, title, subtitle, description, level, price_cents, status, position, category_id)
 VALUES ('00000000-0000-4000-8000-AB0000000001', 'produccion-musical-ableton', 'Producción Musical con Ableton',
         'De la síntesis a la mezcla: cómo suena cada decisión, con demos que podés tocar.',
-        'Un recorrido por Ableton Live pensado para entender, no para memorizar botones: qué hace cada instrumento y efecto, por qué, y cómo se escucha. Cada tema trae teoría corta y una demo interactiva para experimentar antes de abrir el DAW.',
-        'medio', 5900, 'draft', 10, '00000000-0000-4000-8000-060000000002')
-ON CONFLICT (id) DO UPDATE SET subtitle = EXCLUDED.subtitle, description = EXCLUDED.description, category_id = EXCLUDED.category_id;
+        'Un recorrido por Ableton Live pensado para entender, no para memorizar botones: qué hace cada instrumento y efecto, por qué, y cómo se escucha. Cada tema trae teoría corta y una demo interactiva para experimentar antes de abrir el DAW.', 'medio', 5900, 'draft', 10, '00000000-0000-4000-8000-060000000002')
+ON CONFLICT (id) DO UPDATE SET subtitle = EXCLUDED.subtitle, description = EXCLUDED.description,
+  category_id = EXCLUDED.category_id;
 
 -- Biblioteca de demos del curso.
 INSERT INTO demos (id, course_id, slug, title, html, height_px)
@@ -683,8 +683,8 @@ VALUES ('00000000-0000-4000-8000-AB0300000003', '00000000-0000-4000-8000-AB00000
 $d3$, 460)
 ON CONFLICT (id) DO UPDATE SET html = EXCLUDED.html, title = EXCLUDED.title, height_px = EXCLUDED.height_px;
 
--- Módulos: uno por unidad del curso original. Solo el primero tiene
--- lecciones cargadas; el resto marca el plan (vacíos no se publican).
+-- Módulos: uno por unidad. Solo el primero tiene lecciones cargadas;
+-- el resto marca el plan (un módulo vacío no se publica).
 INSERT INTO modules (id, course_id, title, position) VALUES ('00000000-0000-4000-8000-AB0100000001', '00000000-0000-4000-8000-AB0000000001', 'Analog 1: Monofonía', 1) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;
 INSERT INTO modules (id, course_id, title, position) VALUES ('00000000-0000-4000-8000-AB0100000002', '00000000-0000-4000-8000-AB0000000001', 'Analog 2: Polifonía', 2) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;
 INSERT INTO modules (id, course_id, title, position) VALUES ('00000000-0000-4000-8000-AB0100000003', '00000000-0000-4000-8000-AB0000000001', 'Introducción a plug-ins VST', 3) ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;
@@ -704,7 +704,7 @@ INSERT INTO modules (id, course_id, title, position) VALUES ('00000000-0000-4000
 
 -- Módulo 1 · Analog 1: Monofonía (8 lecciones).
 INSERT INTO lessons (id, module_id, title, description, duration_s, is_free_sample, position, kind, body_md)
-VALUES ('00000000-0000-4000-8000-AB0201000001', '00000000-0000-4000-8000-AB0100000001', 'Video 1', '', 1200, true, 1, 'video', $b1$$b1$)
+VALUES ('00000000-0000-4000-8000-AB0201000001', '00000000-0000-4000-8000-AB0100000001', 'Video 1', 'Presentación del módulo.', 1200, true, 1, 'video', $b1$$b1$)
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
   duration_s = EXCLUDED.duration_s, is_free_sample = EXCLUDED.is_free_sample,
   kind = EXCLUDED.kind, body_md = EXCLUDED.body_md;
@@ -842,12 +842,12 @@ ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.de
   duration_s = EXCLUDED.duration_s, is_free_sample = EXCLUDED.is_free_sample,
   kind = EXCLUDED.kind, body_md = EXCLUDED.body_md;
 INSERT INTO lessons (id, module_id, title, description, duration_s, is_free_sample, position, kind, body_md)
-VALUES ('00000000-0000-4000-8000-AB0201000004', '00000000-0000-4000-8000-AB0100000001', 'Video 2', '', 2700, false, 4, 'video', $b4$$b4$)
+VALUES ('00000000-0000-4000-8000-AB0201000004', '00000000-0000-4000-8000-AB0100000001', 'Video 2', 'Analog en Live, paso a paso.', 2700, false, 4, 'video', $b4$$b4$)
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
   duration_s = EXCLUDED.duration_s, is_free_sample = EXCLUDED.is_free_sample,
   kind = EXCLUDED.kind, body_md = EXCLUDED.body_md;
 INSERT INTO lessons (id, module_id, title, description, duration_s, is_free_sample, position, kind, body_md)
-VALUES ('00000000-0000-4000-8000-AB0201000005', '00000000-0000-4000-8000-AB0100000001', 'Video 3', '', 1920, false, 5, 'video', $b5$$b5$)
+VALUES ('00000000-0000-4000-8000-AB0201000005', '00000000-0000-4000-8000-AB0100000001', 'Video 3', 'Diseño de sonido sobre el proyecto de clase.', 1920, false, 5, 'video', $b5$$b5$)
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
   duration_s = EXCLUDED.duration_s, is_free_sample = EXCLUDED.is_free_sample,
   kind = EXCLUDED.kind, body_md = EXCLUDED.body_md;
@@ -878,9 +878,11 @@ ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.de
   duration_s = EXCLUDED.duration_s, is_free_sample = EXCLUDED.is_free_sample,
   kind = EXCLUDED.kind, body_md = EXCLUDED.body_md;
 INSERT INTO lessons (id, module_id, title, description, duration_s, is_free_sample, position, kind, body_md)
-VALUES ('00000000-0000-4000-8000-AB0201000007', '00000000-0000-4000-8000-AB0100000001', 'Proyecto de Clase | Consigna', 'Diseñá los Analog de los canales 11 y 12 del proyecto.', 39, false, 7, 'article', $b7$## Proyecto de clase
+VALUES ('00000000-0000-4000-8000-AB0201000007', '00000000-0000-4000-8000-AB0100000001', 'Proyecto de Clase | Consigna', 'Diseñá los Analog de los canales 11 y 12 del proyecto.', 34, false, 7, 'article', $b7$## Proyecto de clase
 
-Descargá el proyecto de Ableton y trabajá sobre las **escenas marcadas en
+[Descargar el proyecto de Ableton](/uploads/2026/09/e5793c3b3cbe7154a1fd80a6db11ded6.zip) (18 MB, .zip)
+
+Trabajá sobre las **escenas marcadas en
 amarillo**: ya tienen una base rítmica y clips de audio armados.
 
 Los **clips MIDI ya están escritos**, pero los Analog de los **canales 11 y
@@ -894,9 +896,6 @@ forma de onda, ADSR y sub. No hace falta que sea complejo, sí que **encaje**.
 
 **Entrega:** el proyecto con los dos Analog diseñados y una nota breve
 contando qué decisiones tomaste.
-
-<!-- PENDIENTE: adjuntar proyecto-analog-1.zip cuando exista el mecanismo de
-     descargas. Hoy la plataforma no soporta adjuntos en artículos. -->
 $b7$)
 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
   duration_s = EXCLUDED.duration_s, is_free_sample = EXCLUDED.is_free_sample,

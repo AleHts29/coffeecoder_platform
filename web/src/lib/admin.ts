@@ -52,10 +52,14 @@ export const admin = {
   updateDemo: (id: string, input: DemoInput) => api<AdminDemoDetail>(`/admin/demos/${id}`, put(input)),
   deleteDemo: (id: string) => api<void>(`/admin/demos/${id}`, del),
 
-  // La imagen viaja cruda con su Content-Type; el backend la guarda y
-  // devuelve la URL pública para pegar en el Markdown.
-  uploadImage: (file: File) =>
-    api<{ url: string }>('/admin/images', { method: 'POST', body: file, headers: { 'Content-Type': file.type } }),
+  // El archivo viaja crudo con su Content-Type; el backend lo guarda y
+  // devuelve la URL pública para pegar en el Markdown (imagen o adjunto).
+  upload: (file: File) =>
+    api<{ url: string }>('/admin/uploads', {
+      method: 'POST',
+      body: file,
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    }),
 
   refund: (orderId: string) => api<AdminOrder>(`/admin/orders/${orderId}/refund`, { method: 'POST' }),
   enroll: (userId: string, scope: 'course' | 'career', scopeId: string) => api<StudentEnrollment>(`/admin/students/${userId}/enrollments`, json({ scope, scope_id: scopeId })),
