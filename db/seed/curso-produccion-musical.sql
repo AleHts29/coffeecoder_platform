@@ -2394,12 +2394,12 @@ VALUES ('00000000-0000-4000-8000-AB0300000008', '00000000-0000-4000-8000-AB00000
 
   <button class="gate" id="play" type="button" aria-pressed="false">Tocar — mantené apretado</button>
 
-  <p class="caption">Copias y suma · cámara lenta</p>
-  <canvas id="wave" style="height:118px" role="img"
+  <p class="caption" id="waveCap">Copias y suma · cámara lenta</p>
+  <canvas id="wave" style="height:122px" role="img"
           aria-label="Las copias de la onda sawtooth, tenues y apenas desfasadas entre sí, y su suma resaltada: al desafinar, la suma se deforma y su amplitud late"></canvas>
 
   <p class="caption">Espectro · batido <span class="value" id="beat">—</span></p>
-  <canvas id="spec" style="height:58px" role="img"
+  <canvas id="spec" style="height:66px" role="img"
           aria-label="Barras de espectro alrededor de la fundamental de 220 Hz: al subir el detune, las voces se separan y la energía se ensancha"></canvas>
 
   <p class="note">Qué mirar: una voz suena fina; apilarla apenas desafinada la engorda y la hace latir — es el supersaw.</p>
@@ -2416,10 +2416,12 @@ VALUES ('00000000-0000-4000-8000-AB0300000008', '00000000-0000-4000-8000-AB00000
   var volOut = document.getElementById('volOut');
   var btn = document.getElementById('play');
   var waveC = document.getElementById('wave');
+  var waveCap = document.getElementById('waveCap');
   var specC = document.getElementById('spec');
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var ACCENT = '#E08E33', MUTED = '#8C8C8A', AXIS = '#2C2C2E', SECOND = '#5A5A5C';
+  var SURFACE = '#242426';
   var F0 = 220, MAXV = 7, CYCLES = 3, SLOW = 0.12, SPAN = 60;
   var WIN = CYCLES / F0;
   // arranca con las copias ya desfasadas, para no mostrar el caso coherente al entrar
@@ -2621,9 +2623,15 @@ VALUES ('00000000-0000-4000-8000-AB0300000008', '00000000-0000-4000-8000-AB00000
 
   function drawSpec(v) {
     var G = setup(specC), ctx = G.ctx, i;
-    var pad = 16, base = G.h - 15, top = 6;
+    var pad = 16, base = G.h - 17, top = 6;
     var span = G.w - pad * 2;
     function X(c) { return pad + (c + SPAN) / (2 * SPAN) * span; }
+
+    // la banda que ocupan las voces: se ensancha con el detune
+    if (v.n > 1 && v.d > 0) {
+      ctx.fillStyle = SURFACE;
+      ctx.fillRect(X(-v.d), top, X(v.d) - X(-v.d), base - top);
+    }
 
     ctx.strokeStyle = AXIS; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0, base + 0.5); ctx.lineTo(G.w, base + 0.5); ctx.stroke();
@@ -2633,7 +2641,13 @@ VALUES ('00000000-0000-4000-8000-AB0300000008', '00000000-0000-4000-8000-AB00000
     ctx.stroke();
     ctx.setLineDash([]);
 
-    var h = (base - top) / Math.sqrt(v.n), bw = 5;
+    ctx.strokeStyle = SECOND;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(X(-50)) + 0.5, base); ctx.lineTo(Math.round(X(-50)) + 0.5, base + 4);
+    ctx.moveTo(Math.round(X(50)) + 0.5, base); ctx.lineTo(Math.round(X(50)) + 0.5, base + 4);
+    ctx.stroke();
+
+    var h = (base - top) / Math.sqrt(v.n), bw = 7;
     ctx.fillStyle = ACCENT;
     for (i = 0; i < v.n; i++) {
       ctx.fillRect(Math.round(X(v.cents[i]) - bw / 2), base - h, bw, h);
@@ -2641,9 +2655,9 @@ VALUES ('00000000-0000-4000-8000-AB0300000008', '00000000-0000-4000-8000-AB00000
 
     ctx.font = '10px "JetBrains Mono", ui-monospace, monospace';
     ctx.fillStyle = MUTED; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('-50', X(-50), base + 3);
-    ctx.fillText('220 Hz', X(0), base + 3);
-    ctx.fillText('+50', X(50), base + 3);
+    ctx.fillText('-50', X(-50), base + 5);
+    ctx.fillText('220 Hz', X(0), base + 5);
+    ctx.fillText('+50', X(50), base + 5);
   }
 
   function render() {
@@ -2710,6 +2724,7 @@ VALUES ('00000000-0000-4000-8000-AB0300000008', '00000000-0000-4000-8000-AB00000
     if (document.hidden) letGo();
   });
 
+  if (reduce) waveCap.textContent = 'Copias y suma';
   render();
   if (!reduce) raf = requestAnimationFrame(loop);
 })();
@@ -2740,7 +2755,7 @@ VALUES ('00000000-0000-4000-8000-AB0300000009', '00000000-0000-4000-8000-AB00000
   .btn:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
   .btn[disabled] { color: #48484A; border-color: #2C2C2E; background: #1B1B1D; cursor: default; }
   .row { display: grid; grid-template-columns: 64px 1fr 62px; gap: 10px;
-         align-items: center; margin-bottom: 7px; }
+         align-items: center; margin-bottom: 6px; }
   .row label { font-size: 13px; color: #9A9A97; }
   .value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
            text-align: right; }
@@ -2748,7 +2763,7 @@ VALUES ('00000000-0000-4000-8000-AB0300000009', '00000000-0000-4000-8000-AB00000
   input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
   .audio { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 9px 0 8px; }
   .audio .label { font-size: 12px; color: #8C8C8A; }
-  .audio input[type=range] { width: 110px; flex: 0 1 110px; }
+  .audio input[type=range] { width: auto; flex: 1 1 70px; min-width: 60px; }
   .audio .value { width: 38px; text-align: right; color: #8C8C8A; }
   .gate { display: block; width: 100%; margin: 0 0 9px; padding: 7px 10px;
           font-family: inherit; font-size: 13px; font-weight: 500;
@@ -2804,7 +2819,7 @@ VALUES ('00000000-0000-4000-8000-AB0300000009', '00000000-0000-4000-8000-AB00000
 
   <button class="gate" id="gate" type="button" aria-pressed="false">Tocar nota — mantené apretado</button>
 
-  <canvas id="env" style="height:112px" role="img"
+  <canvas id="env" style="height:106px" role="img"
           aria-label="Envolvente a lo largo del tiempo: la zona sombreada es la tecla apretada y la bolita recorre la curva. En los modos AD-R y ADR-R el segmento se repite en bucle mientras sostenés; en ADS-AR la envolvente suena una vez y vuelve a disparar attack y release al final de la nota"></canvas>
 
   <p class="status">etapa <span class="value" id="stage">silencio</span></p>

@@ -19,7 +19,7 @@
   .btn:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
   .btn[disabled] { color: #48484A; border-color: #2C2C2E; background: #1B1B1D; cursor: default; }
   .row { display: grid; grid-template-columns: 64px 1fr 62px; gap: 10px;
-         align-items: center; margin-bottom: 7px; }
+         align-items: center; margin-bottom: 6px; }
   .row label { font-size: 13px; color: #9A9A97; }
   .value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
            text-align: right; }
@@ -27,7 +27,7 @@
   input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
   .audio { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 9px 0 8px; }
   .audio .label { font-size: 12px; color: #8C8C8A; }
-  .audio input[type=range] { width: 110px; flex: 0 1 110px; }
+  .audio input[type=range] { width: auto; flex: 1 1 70px; min-width: 60px; }
   .audio .value { width: 38px; text-align: right; color: #8C8C8A; }
   .gate { display: block; width: 100%; margin: 0 0 9px; padding: 7px 10px;
           font-family: inherit; font-size: 13px; font-weight: 500;
@@ -83,7 +83,7 @@
 
   <button class="gate" id="gate" type="button" aria-pressed="false">Tocar nota — mantené apretado</button>
 
-  <canvas id="env" style="height:112px" role="img"
+  <canvas id="env" style="height:106px" role="img"
           aria-label="Envolvente a lo largo del tiempo: la zona sombreada es la tecla apretada y la bolita recorre la curva. En los modos AD-R y ADR-R el segmento se repite en bucle mientras sostenés; en ADS-AR la envolvente suena una vez y vuelve a disparar attack y release al final de la nota"></canvas>
 
   <p class="status">etapa <span class="value" id="stage">silencio</span></p>
