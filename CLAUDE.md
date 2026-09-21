@@ -113,6 +113,14 @@ web/                React PWA
 5. **`video_asset_id` nunca sale por la API.** La reproducción pasa por
    `GET /lessons/{id}/playback`, que verifica acceso y devuelve la URL
    HLS firmada con TTL corto.
+6. **El contenido de lectura sigue la misma regla.** `lessons.body_md` y
+   `demos.html` solo salen por `GET /lessons/{id}/content` (verifica
+   acceso) y `GET /demos/{id}/frame` (verifica firma HMAC). Jamás por
+   la currícula ni por ningún endpoint público.
+7. **Las demos se sirven por URL firmada, nunca con `srcdoc`.** Un
+   iframe `srcdoc` hereda la CSP de la plataforma; con `src` la demo
+   tiene su propia CSP `sandbox` y queda en un origen opaco. Ver
+   `docs/DEMOS.md`.
 
 ## Reglas de código
 

@@ -22,6 +22,8 @@ export interface AdminProduct extends ProductInput {
 
 export type VideoStatus = 'none' | 'uploading' | 'processing' | 'ready' | 'failed'
 
+export type LessonKind = 'video' | 'article'
+
 export interface AdminLesson {
   id: string
   title: string
@@ -30,6 +32,8 @@ export interface AdminLesson {
   is_free_sample: boolean
   position: number
   video_status: VideoStatus
+  kind: LessonKind
+  body_md: string
 }
 
 export interface AdminModule {
@@ -52,6 +56,34 @@ export interface LessonInput {
   description: string
   duration_s: number
   is_free_sample: boolean
+  kind: LessonKind
+  body_md: string
+}
+
+export interface AdminDemo {
+  id: string
+  slug: string
+  title: string
+  height_px: number
+  size_bytes: number
+  frame_url: string
+  used_by: { id: string; title: string; module_title: string }[]
+}
+
+export interface AdminDemoDetail {
+  id: string
+  slug: string
+  title: string
+  html: string
+  height_px: number
+  frame_url: string
+}
+
+export interface DemoInput {
+  slug: string
+  title: string
+  html: string
+  height_px: number
 }
 
 export interface UploadTicket {

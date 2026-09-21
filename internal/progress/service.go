@@ -20,6 +20,7 @@ import (
 )
 
 var (
+	ErrNotVideo       = errors.New("esa lección no es de video")
 	ErrLessonNotFound = errors.New("esa lección no existe")
 	ErrCourseNotFound = errors.New("ese curso no existe")
 	ErrNoAccess       = errors.New("necesitás comprar el curso para registrar progreso")
@@ -57,6 +58,11 @@ func (s *Service) Heartbeat(ctx context.Context, userID, lessonID uuid.UUID, sec
 	lesson, err := s.accessibleLesson(ctx, userID, lessonID)
 	if err != nil {
 		return HeartbeatResult{}, err
+	}
+	// Los artículos no tienen posición de reproducción: se completan al
+	// llegar al final o a mano.
+	if lesson.Kind != "video" {
+		return HeartbeatResult{}, ErrNotVideo
 	}
 	if seconds < 0 {
 		seconds = 0
@@ -100,13 +106,34 @@ func (s *Service) Heartbeat(ctx context.Context, userID, lessonID uuid.UUID, sec
 	return result, nil
 }
 
-// Complete marca la lección como vista por acción del alumno.
-func (s *Service) Complete(ctx context.Context, userID, lessonID uuid.UUID) (store.LessonProgress, error) {
+// Complete marca la lección como vista: por acción del alumno o porque
+// llegó al final de un artículo. En artículos suma el tiempo estimado de
+// lectura a la actividad del día, para que racha y horas incluyan las
+// lecturas. Idempotente: si ya estaba completada no vuelve a sumar.
+func (s *Service) Complete(ctx context.Context, userID, lessonID uuid.UUID, tz string) (store.LessonProgress, error) {
 	lesson, err := s.accessibleLesson(ctx, userID, lessonID)
 	if err != nil {
 		return store.LessonProgress{}, err
 	}
-	return s.complete(ctx, userID, lesson, lesson.DurationS)
+
+	prev, err := s.q.GetLessonProgress(ctx, store.GetLessonProgressParams{UserID: userID, LessonID: lessonID})
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return store.LessonProgress{}, err
+	}
+	alreadyDone := err == nil && prev.Completed
+
+	lp, err := s.complete(ctx, userID, lesson, lesson.DurationS)
+	if err != nil {
+		return store.LessonProgress{}, err
+	}
+	if !alreadyDone && lesson.Kind == "article" && lesson.DurationS > 0 {
+		if err := s.q.UpsertDailyActivity(ctx, store.UpsertDailyActivityParams{
+			UserID: userID, Seconds: lesson.DurationS, Tz: location(tz).String(),
+		}); err != nil {
+			return store.LessonProgress{}, err
+		}
+	}
+	return lp, nil
 }
 
 func (s *Service) complete(ctx context.Context, userID uuid.UUID, lesson store.GetLessonRow, seconds int32) (store.LessonProgress, error) {

@@ -13,6 +13,7 @@ import (
 	"github.com/alejandro/coffeecoder/internal/billing"
 	"github.com/alejandro/coffeecoder/internal/catalog"
 	"github.com/alejandro/coffeecoder/internal/config"
+	"github.com/alejandro/coffeecoder/internal/content"
 	"github.com/alejandro/coffeecoder/internal/enrollment"
 	"github.com/alejandro/coffeecoder/internal/mail"
 	"github.com/alejandro/coffeecoder/internal/media"
@@ -47,7 +48,8 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) (http.Handl
 		catalogAdmin := catalog.NewAdminHandler(catalog.NewAdminService(q, pool), logger)
 		enrollmentAdmin := enrollment.NewHandler(enrollment.NewService(q), logger)
 		mediaSvc := media.NewService(q, newVideoProvider(cfg), cfg.Video.PlaybackTTL, logger)
-		mediaHandler := media.NewHandler(mediaSvc, cfg.Bunny.WebhookSecret, logger)
+		mediaHandler := media.NewHandler(mediaSvc, media.NewImageStore(cfg.Images), cfg.Bunny.WebhookSecret, logger)
+		contentHandler := content.NewHandler(content.NewService(q, cfg.JWTSecret), logger)
 		progressHandler := progress.NewHandler(progress.NewService(q, logger), logger)
 		billingSvc := billing.NewService(q, newPaymentProvider(cfg), mailer, cfg.Billing, cfg.FrontendURL, logger)
 		billingHandler := billing.NewHandler(billingSvc, q, logger)
@@ -59,11 +61,13 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) (http.Handl
 		// --- Webhooks (P4, P6): fuera de auth de usuario, firma propia ---
 		billingHandler.MountWebhooks(r) // /webhooks/mercadopago
 		mediaHandler.MountWebhooks(r)   // /webhooks/bunny
+		contentHandler.MountFrame(r)    // /demos/{id}/frame: la firma es la credencial
 
 		// --- Auth opcional (P4): muestras gratis para visitantes ---
 		r.Group(func(r chi.Router) {
 			r.Use(auth.OptionalMiddleware(cfg.JWTSecret))
-			mediaHandler.MountPlayback(r) // /lessons/{id}/playback
+			mediaHandler.MountPlayback(r)  // /lessons/{id}/playback
+			contentHandler.MountContent(r) // /lessons/{id}/content
 		})
 
 		// --- Autenticado (P5, P6) ---
@@ -82,10 +86,16 @@ func New(cfg config.Config, pool *pgxpool.Pool, logger *slog.Logger) (http.Handl
 				catalogAdmin.Mount(r)        // CRUD carreras/cursos/módulos/lecciones + orden
 				enrollmentAdmin.Mount(r)     // /students, alta y baja de enrollments
 				mediaHandler.MountAdmin(r)   // /lessons/{id}/video, /video/sync
+				contentHandler.MountAdmin(r) // /courses/{id}/demos, /demos/{id}
 				billingHandler.MountAdmin(r) // /orders, /orders/{id}/refund
 			})
 		})
 	})
+
+	// Imágenes de artículos en desarrollo: disco local servido acá mismo.
+	if cfg.Images.Provider == "local" {
+		r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(cfg.Images.LocalDir))))
+	}
 
 	// PWA compilada (producción): assets + index.html con OG por producto.
 	if cfg.WebDist != "" {

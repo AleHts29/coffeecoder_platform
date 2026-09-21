@@ -184,6 +184,22 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
   en localStorage, sin token): consola limpia para visitantes.
 - Lighthouse móvil sobre el build: catálogo perf 84 / a11y 95 / best practices 100 / SEO 100.
 
+## Lecciones de lectura y demos (2026-09-21)
+
+- Una lección tiene `kind`: `video` o `article`. El texto va en `body_md`
+  (Markdown, sin HTML crudo) y se renderiza con react-markdown + Shiki.
+- Las demos interactivas son HTML autocontenido en una biblioteca por
+  curso (tabla `demos`), se insertan con `::demo[slug]` y se sirven por
+  `GET /demos/{id}/frame` con firma HMAC y CSP `sandbox` propia: origen
+  opaco, sin red, sin storage, sin acceso a la página que las contiene.
+  El contrato de una demo está en `docs/DEMOS.md`.
+- `GET /lessons/{id}/content` usa la misma regla de acceso que el
+  playback de video. Admin: CRUD de demos, editor Markdown con preview,
+  "Insertar demo" y subida de imágenes (`POST /admin/images`).
+- El tiempo de lectura se calcula al guardar (~200 palabras/min, código
+  a mitad de peso, +60 s por demo) y suma a las horas del curso y a la
+  actividad diaria al completar.
+
 ## Tests
 
 `make test` crea `coffeecoder_test`, aplica migraciones y seed una vez, y

@@ -96,6 +96,8 @@ type adminLessonDTO struct {
 	IsFreeSample bool   `json:"is_free_sample"`
 	Position     int32  `json:"position"`
 	VideoStatus  string `json:"video_status"`
+	Kind         string `json:"kind"`
+	BodyMD       string `json:"body_md"`
 }
 
 type adminModuleDTO struct {
@@ -120,6 +122,8 @@ type lessonInputDTO struct {
 	Description  string `json:"description"`
 	DurationS    int32  `json:"duration_s"`
 	IsFreeSample bool   `json:"is_free_sample"`
+	Kind         string `json:"kind"`
+	BodyMD       string `json:"body_md"`
 }
 
 type titleDTO struct {
@@ -131,7 +135,7 @@ type orderDTO struct {
 }
 
 func lessonDTOf(l store.Lesson) adminLessonDTO {
-	return adminLessonDTO{ID: l.ID.String(), Title: l.Title, Description: l.Description, DurationS: l.DurationS, IsFreeSample: l.IsFreeSample, Position: l.Position, VideoStatus: l.VideoStatus}
+	return adminLessonDTO{ID: l.ID.String(), Title: l.Title, Description: l.Description, DurationS: l.DurationS, IsFreeSample: l.IsFreeSample, Position: l.Position, VideoStatus: l.VideoStatus, Kind: l.Kind, BodyMD: l.BodyMd}
 }
 
 // --- handlers: carreras ---
@@ -257,7 +261,7 @@ func (h *AdminHandler) getCourse(w http.ResponseWriter, r *http.Request) {
 	for _, m := range modules {
 		md := adminModuleDTO{ID: m.ID.String(), Title: m.Title, Position: m.Position, Lessons: []adminLessonDTO{}}
 		for _, l := range m.Lessons {
-			md.Lessons = append(md.Lessons, adminLessonDTO{ID: l.ID.String(), Title: l.Title, Description: l.Description, DurationS: l.DurationS, IsFreeSample: l.IsFreeSample, Position: l.Position, VideoStatus: l.VideoStatus})
+			md.Lessons = append(md.Lessons, adminLessonDTO{ID: l.ID.String(), Title: l.Title, Description: l.Description, DurationS: l.DurationS, IsFreeSample: l.IsFreeSample, Position: l.Position, VideoStatus: l.VideoStatus, Kind: l.Kind, BodyMD: l.BodyMD})
 			out.LessonCount++
 		}
 		out.Modules = append(out.Modules, md)

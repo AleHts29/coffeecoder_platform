@@ -23,7 +23,9 @@ SELECT
   l.duration_s,
   l.is_free_sample,
   l.position     AS lesson_position,
-  l.video_status
+  l.video_status,
+  l.kind,
+  l.body_md
 FROM modules m
 LEFT JOIN lessons l ON l.module_id = m.id
 WHERE m.course_id = $1
@@ -41,6 +43,8 @@ type AdminGetCourseCurriculumRow struct {
 	IsFreeSample   *bool       `json:"is_free_sample"`
 	LessonPosition *int32      `json:"lesson_position"`
 	VideoStatus    *string     `json:"video_status"`
+	Kind           *string     `json:"kind"`
+	BodyMd         *string     `json:"body_md"`
 }
 
 // Como GetCourseCurriculum pero con módulos vacíos y estado del video.
@@ -65,6 +69,8 @@ func (q *Queries) AdminGetCourseCurriculum(ctx context.Context, courseID uuid.UU
 			&i.IsFreeSample,
 			&i.LessonPosition,
 			&i.VideoStatus,
+			&i.Kind,
+			&i.BodyMd,
 		); err != nil {
 			return nil, err
 		}
@@ -390,9 +396,9 @@ func (q *Queries) CreateCourse(ctx context.Context, arg CreateCourseParams) (Cou
 }
 
 const createLesson = `-- name: CreateLesson :one
-INSERT INTO lessons (module_id, title, description, duration_s, is_free_sample, position)
-VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX(position), 0) + 1 FROM lessons WHERE module_id = $1))
-RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at
+INSERT INTO lessons (module_id, title, description, duration_s, is_free_sample, kind, body_md, position)
+VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(MAX(position), 0) + 1 FROM lessons WHERE module_id = $1))
+RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at, kind, body_md
 `
 
 type CreateLessonParams struct {
@@ -401,6 +407,8 @@ type CreateLessonParams struct {
 	Description  string    `json:"description"`
 	DurationS    int32     `json:"duration_s"`
 	IsFreeSample bool      `json:"is_free_sample"`
+	Kind         string    `json:"kind"`
+	BodyMd       string    `json:"body_md"`
 }
 
 func (q *Queries) CreateLesson(ctx context.Context, arg CreateLessonParams) (Lesson, error) {
@@ -410,6 +418,8 @@ func (q *Queries) CreateLesson(ctx context.Context, arg CreateLessonParams) (Les
 		arg.Description,
 		arg.DurationS,
 		arg.IsFreeSample,
+		arg.Kind,
+		arg.BodyMd,
 	)
 	var i Lesson
 	err := row.Scan(
@@ -425,6 +435,8 @@ func (q *Queries) CreateLesson(ctx context.Context, arg CreateLessonParams) (Les
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.BodyMd,
 	)
 	return i, err
 }
@@ -603,6 +615,42 @@ func (q *Queries) ListModuleIDs(ctx context.Context, courseID uuid.UUID) ([]uuid
 	return items, nil
 }
 
+const setLessonKind = `-- name: SetLessonKind :one
+UPDATE lessons
+SET kind = $2, body_md = CASE WHEN $2 = 'video' THEN '' ELSE body_md END
+WHERE id = $1 AND video_status = 'none'
+RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at, kind, body_md
+`
+
+type SetLessonKindParams struct {
+	ID   uuid.UUID `json:"id"`
+	Kind string    `json:"kind"`
+}
+
+// Cambiar el tipo solo si la lección no tiene video subido; si no,
+// no afecta filas y el service devuelve un error accionable.
+func (q *Queries) SetLessonKind(ctx context.Context, arg SetLessonKindParams) (Lesson, error) {
+	row := q.db.QueryRow(ctx, setLessonKind, arg.ID, arg.Kind)
+	var i Lesson
+	err := row.Scan(
+		&i.ID,
+		&i.ModuleID,
+		&i.Title,
+		&i.Description,
+		&i.VideoProvider,
+		&i.VideoAssetID,
+		&i.VideoStatus,
+		&i.DurationS,
+		&i.IsFreeSample,
+		&i.Position,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.BodyMd,
+	)
+	return i, err
+}
+
 const setLessonPosition = `-- name: SetLessonPosition :exec
 UPDATE lessons SET position = $2 WHERE id = $1
 `
@@ -727,9 +775,9 @@ func (q *Queries) UpdateCourse(ctx context.Context, arg UpdateCourseParams) (Cou
 
 const updateLesson = `-- name: UpdateLesson :one
 UPDATE lessons
-SET title = $2, description = $3, duration_s = $4, is_free_sample = $5
+SET title = $2, description = $3, duration_s = $4, is_free_sample = $5, body_md = $6
 WHERE id = $1
-RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at
+RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at, kind, body_md
 `
 
 type UpdateLessonParams struct {
@@ -738,8 +786,10 @@ type UpdateLessonParams struct {
 	Description  string    `json:"description"`
 	DurationS    int32     `json:"duration_s"`
 	IsFreeSample bool      `json:"is_free_sample"`
+	BodyMd       string    `json:"body_md"`
 }
 
+// El tipo no se cambia acá: tiene su propia query con guarda.
 func (q *Queries) UpdateLesson(ctx context.Context, arg UpdateLessonParams) (Lesson, error) {
 	row := q.db.QueryRow(ctx, updateLesson,
 		arg.ID,
@@ -747,6 +797,7 @@ func (q *Queries) UpdateLesson(ctx context.Context, arg UpdateLessonParams) (Les
 		arg.Description,
 		arg.DurationS,
 		arg.IsFreeSample,
+		arg.BodyMd,
 	)
 	var i Lesson
 	err := row.Scan(
@@ -762,6 +813,8 @@ func (q *Queries) UpdateLesson(ctx context.Context, arg UpdateLessonParams) (Les
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.BodyMd,
 	)
 	return i, err
 }

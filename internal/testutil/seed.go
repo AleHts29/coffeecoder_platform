@@ -11,4 +11,9 @@ var (
 	LessonGoFree   = uuid.MustParse("00000000-0000-4000-8000-040000010101") // curso 1, muestra gratis
 	LessonGoPaid   = uuid.MustParse("00000000-0000-4000-8000-040000010102") // curso 1, paga
 	LessonRedisPay = uuid.MustParse("00000000-0000-4000-8000-040000050102") // curso 5, paga
+
+	// Lectura con demo, muestra gratis (db/seed/articles.sql).
+	LessonArticle = uuid.MustParse("00000000-0000-4000-8000-040000010305")
+	DemoChannels  = uuid.MustParse("00000000-0000-4000-8000-050000000001")
+	DemoLFO       = uuid.MustParse("00000000-0000-4000-8000-050000000002")
 )

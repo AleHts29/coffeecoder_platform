@@ -34,6 +34,7 @@ SELECT
   l.description,
   l.duration_s,
   l.is_free_sample,
+  l.kind,
   l.position   AS lesson_position
 FROM modules m
 JOIN lessons l ON l.module_id = m.id

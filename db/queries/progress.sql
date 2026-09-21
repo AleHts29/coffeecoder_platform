@@ -54,6 +54,7 @@ SELECT
   lp.seconds,
   l.title      AS lesson_title,
   l.duration_s,
+  l.kind,
   m.title      AS module_title,
   m.position   AS module_position,
   c.id         AS course_id,

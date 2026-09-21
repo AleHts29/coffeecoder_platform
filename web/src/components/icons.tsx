@@ -124,3 +124,27 @@ export const ListIcon = (p: Props) => (
     <path d="M5 18l0 .01" />
   </Icon>
 )
+
+export const AdjustmentsIcon = (p: Props) => (
+  <Icon {...p}>
+    <path d="M14 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+    <path d="M4 6l8 0" />
+    <path d="M16 6l4 0" />
+    <path d="M8 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+    <path d="M4 12l2 0" />
+    <path d="M10 12l10 0" />
+    <path d="M17 18m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+    <path d="M4 18l11 0" />
+    <path d="M19 18l1 0" />
+  </Icon>
+)
+
+export const FileTextIcon = (p: Props) => (
+  <Icon {...p}>
+    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+    <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" />
+    <path d="M9 9l1 0" />
+    <path d="M9 13l6 0" />
+    <path d="M9 17l6 0" />
+  </Icon>
+)

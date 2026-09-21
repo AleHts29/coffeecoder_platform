@@ -4,12 +4,12 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import { useAuth } from '@/lib/auth'
 import { dashboardQuery } from '@/lib/queries'
 import { useTitle } from '@/lib/useTitle'
-import { formatClock, formatHours, pad2 } from '@/lib/format'
+import { formatClock, formatHours, formatLessonDuration, pad2 } from '@/lib/format'
 import { ButtonLink } from '@/components/Button'
 import { LevelBadge } from '@/components/LevelBadge'
 import { ProgressBar, SegmentBar } from '@/components/ProgressBar'
 import { EmptyState, ErrorState, Loading } from '@/components/PageState'
-import { PlayIcon } from '@/components/icons'
+import { FileTextIcon, PlayIcon } from '@/components/icons'
 import type { CourseCard } from '@/types/progress'
 
 // Panel del alumno: "seguí donde quedaste", racha y horas en mono,
@@ -52,23 +52,29 @@ export function Dashboard() {
           {d.continue && (
             <section aria-labelledby="continuar" className="hairline flex flex-col gap-4 rounded-card bg-surface-1 p-5 sm:flex-row sm:items-center">
               <div className="flex aspect-video w-full shrink-0 items-center justify-center rounded-control bg-surface-2 sm:w-48" aria-hidden="true">
-                <PlayIcon size={28} className="text-accent" />
+                {d.continue.kind === 'article' ? <FileTextIcon size={28} className="text-accent" /> : <PlayIcon size={28} className="text-accent" />}
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-2">
                 <h2 id="continuar" className="font-mono text-xs text-ink-faint">
-                  seguí donde quedaste
+                  {d.continue.kind === 'article' ? 'seguí leyendo' : 'seguí donde quedaste'}
                 </h2>
                 <p className="text-lg text-ink">{d.continue.lesson_title}</p>
                 <p className="text-sm text-ink-soft">
                   {d.continue.course_title} · módulo {pad2(d.continue.module_position)}
                 </p>
-                <ProgressBar
-                  value={d.continue.duration_s > 0 ? (d.continue.seconds / d.continue.duration_s) * 100 : 0}
-                  label={`Avance en ${d.continue.lesson_title}`}
-                />
-                <p className="font-mono text-xs text-ink-faint">
-                  {formatClock(d.continue.seconds)} / {formatClock(d.continue.duration_s)}
-                </p>
+                {d.continue.kind === 'article' ? (
+                  <p className="font-mono text-xs text-ink-faint">lectura · {formatLessonDuration(d.continue.duration_s, 'article')}</p>
+                ) : (
+                  <>
+                    <ProgressBar
+                      value={d.continue.duration_s > 0 ? (d.continue.seconds / d.continue.duration_s) * 100 : 0}
+                      label={`Avance en ${d.continue.lesson_title}`}
+                    />
+                    <p className="font-mono text-xs text-ink-faint">
+                      {formatClock(d.continue.seconds)} / {formatClock(d.continue.duration_s)}
+                    </p>
+                  </>
+                )}
               </div>
               <ButtonLink
                 variant="primary"

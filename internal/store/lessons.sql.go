@@ -14,7 +14,7 @@ import (
 
 const getLesson = `-- name: GetLesson :one
 SELECT
-  l.id, l.module_id, l.title, l.description, l.video_provider, l.video_asset_id, l.video_status, l.duration_s, l.is_free_sample, l.position, l.created_at, l.updated_at,
+  l.id, l.module_id, l.title, l.description, l.video_provider, l.video_asset_id, l.video_status, l.duration_s, l.is_free_sample, l.position, l.created_at, l.updated_at, l.kind, l.body_md,
   m.course_id,
   m.title    AS module_title,
   m.position AS module_position
@@ -36,6 +36,8 @@ type GetLessonRow struct {
 	Position       int32              `json:"position"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Kind           string             `json:"kind"`
+	BodyMd         string             `json:"body_md"`
 	CourseID       uuid.UUID          `json:"course_id"`
 	ModuleTitle    string             `json:"module_title"`
 	ModulePosition int32              `json:"module_position"`
@@ -59,6 +61,8 @@ func (q *Queries) GetLesson(ctx context.Context, id uuid.UUID) (GetLessonRow, er
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.BodyMd,
 		&i.CourseID,
 		&i.ModuleTitle,
 		&i.ModulePosition,
@@ -73,7 +77,7 @@ SET video_provider = $2,
     video_status   = 'uploading',
     duration_s     = 0
 WHERE id = $1
-RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at
+RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at, kind, body_md
 `
 
 type SetLessonVideoUploadingParams struct {
@@ -100,6 +104,8 @@ func (q *Queries) SetLessonVideoUploading(ctx context.Context, arg SetLessonVide
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.BodyMd,
 	)
 	return i, err
 }
@@ -109,7 +115,7 @@ UPDATE lessons
 SET video_status = $3,
     duration_s   = CASE WHEN $4::int > 0 THEN $4::int ELSE duration_s END
 WHERE video_provider = $1 AND video_asset_id = $2
-RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at
+RETURNING id, module_id, title, description, video_provider, video_asset_id, video_status, duration_s, is_free_sample, position, created_at, updated_at, kind, body_md
 `
 
 type UpdateLessonVideoByAssetParams struct {
@@ -142,6 +148,8 @@ func (q *Queries) UpdateLessonVideoByAsset(ctx context.Context, arg UpdateLesson
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.BodyMd,
 	)
 	return i, err
 }

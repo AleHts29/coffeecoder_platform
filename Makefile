@@ -60,8 +60,9 @@ migrate-url:
 	done
 
 .PHONY: seed
-seed: ## Carga contenido de desarrollo (db/seed/dev.sql, idempotente)
+seed: ## Carga contenido de desarrollo (db/seed/*.sql, idempotente)
 	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -q -f db/seed/dev.sql
+	psql "$(DB_URL)" -v ON_ERROR_STOP=1 -q -f db/seed/articles.sql
 
 .PHONY: dev-pay
 dev-pay: ## Aprueba una orden con el provider fake: make dev-pay ORDER=<uuid>

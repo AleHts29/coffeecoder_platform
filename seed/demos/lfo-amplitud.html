@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modulación de amplitud con un LFO</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 12px; background: #1B1B1D; color: #EDEDEB;
+         font-family: 'Space Grotesk', system-ui, sans-serif; }
+  .row { display: grid; grid-template-columns: 64px 1fr 60px; gap: 10px;
+         align-items: center; margin-bottom: 8px; }
+  .row label { font-size: 13px; color: #9A9A97; }
+  .value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
+           text-align: right; }
+  input[type=range] { accent-color: #E08E33; width: 100%; margin: 0; }
+  input[type=range]:focus-visible { outline: 2px solid #E08E33; outline-offset: 3px; }
+  .caption { font-size: 12px; color: #8C8C8A; margin: 12px 0 4px; }
+  canvas { display: block; width: 100%; }
+</style>
+</head>
+<body>
+  <div class="row">
+    <label for="rate">Rate</label>
+    <input id="rate" type="range" min="0.1" max="2" step="0.1" value="0.5">
+    <span class="value" id="rateOut">0.5 Hz</span>
+  </div>
+  <div class="row">
+    <label for="amount">Amount</label>
+    <input id="amount" type="range" min="0" max="100" step="1" value="100">
+    <span class="value" id="amountOut">100%</span>
+  </div>
+
+  <p class="caption">LFO · el modulador, lento</p>
+  <canvas id="lfo" style="height:56px" role="img" aria-label="Onda lenta del LFO"></canvas>
+  <p class="caption">Portadora · el sonido, rápido y parejo</p>
+  <canvas id="carrier" style="height:56px" role="img" aria-label="Onda portadora de amplitud constante"></canvas>
+  <p class="caption">Resultado · la amplitud sigue al LFO</p>
+  <canvas id="result" style="height:84px" role="img" aria-label="Portadora con la amplitud modulada por el LFO"></canvas>
+
+<script>
+(function () {
+  var rate = document.getElementById('rate');
+  var amount = document.getElementById('amount');
+  var rateOut = document.getElementById('rateOut');
+  var amountOut = document.getElementById('amountOut');
+  var canvases = ['lfo', 'carrier', 'result'].map(function (id) { return document.getElementById(id); });
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var ACCENT = '#E08E33', MUTED = '#8C8C8A', AXIS = '#2C2C2E', ENVELOPE = '#5A5A5C';
+  var CARRIER_CYCLES = 30;
+  var phase = 0, last = performance.now();
+
+  function setup(c) {
+    var dpr = window.devicePixelRatio || 1;
+    var r = c.getBoundingClientRect();
+    var w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    var ctx = c.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, r.width, r.height);
+    ctx.strokeStyle = AXIS; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, r.height / 2); ctx.lineTo(r.width, r.height / 2); ctx.stroke();
+    return { ctx: ctx, w: r.width, h: r.height };
+  }
+
+  function plot(g, fn, color, width) {
+    var mid = g.h / 2, amp = g.h / 2 - 4;
+    g.ctx.strokeStyle = color; g.ctx.lineWidth = width;
+    g.ctx.beginPath();
+    for (var x = 0; x <= g.w; x++) {
+      var y = mid - fn(x / g.w) * amp;
+      if (x === 0) g.ctx.moveTo(x, y); else g.ctx.lineTo(x, y);
+    }
+    g.ctx.stroke();
+  }
+
+  function draw() {
+    var r = parseFloat(rate.value);
+    var m = parseInt(amount.value, 10) / 100;
+    rateOut.textContent = r.toFixed(1) + ' Hz';
+    amountOut.textContent = Math.round(m * 100) + '%';
+
+    var lfoCycles = 0.6 + r * 1.2;
+    function lfo(u) { return Math.sin(2 * Math.PI * lfoCycles * u + phase); }
+    function gain(u) { return 1 - m * (1 - (lfo(u) + 1) / 2); }
+    function carrier(u) { return Math.sin(2 * Math.PI * CARRIER_CYCLES * u); }
+
+    var g1 = setup(canvases[0]), g2 = setup(canvases[1]), g3 = setup(canvases[2]);
+    plot(g1, lfo, ACCENT, 1.6);
+    plot(g2, carrier, MUTED, 1.2);
+    plot(g3, gain, ENVELOPE, 1);
+    plot(g3, function (u) { return -gain(u); }, ENVELOPE, 1);
+    plot(g3, function (u) { return gain(u) * carrier(u); }, ACCENT, 1.4);
+  }
+
+  function loop(now) {
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    phase += parseFloat(rate.value) * dt * 2 * Math.PI;
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  rate.addEventListener('input', draw);
+  amount.addEventListener('input', draw);
+  window.addEventListener('resize', draw);
+
+  if (reduce) draw(); else requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

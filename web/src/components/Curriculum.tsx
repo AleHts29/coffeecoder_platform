@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import type { Module } from '@/types/catalog'
-import { formatClock, formatHours, pad2, plural } from '@/lib/format'
-import { ChevronDownIcon, PlayIcon } from './icons'
+import { formatHours, formatLessonDuration, pad2, plural } from '@/lib/format'
+import { ChevronDownIcon, FileTextIcon, PlayIcon } from './icons'
 
 // Currícula expandible por módulos. Usa <details> nativo: accesible,
 // sin JS, y el estado abierto sobrevive a re-renders.
@@ -36,13 +36,14 @@ export function Curriculum({ modules, courseSlug }: { modules: Module[]; courseS
                     className="flex min-h-11 items-center gap-3 px-4 py-2 text-sm transition-colors duration-150 hover:bg-surface-2"
                   >
                     <span className="w-6 shrink-0 font-mono text-xs text-ink-faint">{pad2(lesson.position)}</span>
+                    {lesson.kind === 'article' && <FileTextIcon size={14} className="shrink-0 text-ink-faint" aria-label="lectura" />}
                     <span className="flex-1 text-ink-soft">{lesson.title}</span>
                     {lesson.is_free_sample && (
                       <span className="inline-flex items-center gap-1 font-mono text-xs text-accent">
                         <PlayIcon size={14} /> gratis
                       </span>
                     )}
-                    <span className="font-mono text-xs text-ink-faint">{formatClock(lesson.duration_s)}</span>
+                    <span className="font-mono text-xs text-ink-faint">{formatLessonDuration(lesson.duration_s, lesson.kind)}</span>
                   </Link>
                 </li>
               ))}

@@ -1,8 +1,8 @@
 import { Link } from '@tanstack/react-router'
 import type { CourseDetail } from '@/types/catalog'
 import type { CourseProgress } from '@/types/progress'
-import { formatClock, formatHours, pad2, plural } from '@/lib/format'
-import { CheckIcon, ChevronDownIcon, PlayIcon } from './icons'
+import { formatHours, formatLessonDuration, pad2, plural } from '@/lib/format'
+import { CheckIcon, ChevronDownIcon, FileTextIcon, PlayIcon } from './icons'
 import { ProgressBar } from './ProgressBar'
 
 type Props = {
@@ -67,13 +67,14 @@ export function PlayerSidebar({ course, activeLessonId, progress }: Props) {
                         }
                       >
                         <span className="w-5 font-mono text-xs text-ink-faint">{pad2(lesson.position)}</span>
+                        {lesson.kind === 'article' && <FileTextIcon size={14} className="shrink-0 text-ink-faint" aria-label="lectura" />}
                         <span className="flex-1">{lesson.title}</span>
                         {completed ? (
                           <CheckIcon size={14} className="text-accent" aria-label="completada" />
                         ) : (
                           lesson.is_free_sample && <PlayIcon size={14} className="text-accent" aria-label="gratis" />
                         )}
-                        <span className="font-mono text-xs text-ink-faint">{formatClock(lesson.duration_s)}</span>
+                        <span className="font-mono text-xs text-ink-faint">{formatLessonDuration(lesson.duration_s, lesson.kind)}</span>
                       </Link>
                     </li>
                   )

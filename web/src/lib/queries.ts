@@ -73,3 +73,17 @@ export const myOrdersQuery = (userId: string | null) =>
     queryFn: () => api<Order[]>('/me/orders'),
     enabled: !!userId,
   })
+
+
+import type { LessonContentData } from '@/types/content'
+
+// Contenido de una lección de lectura (o los apuntes de una de video).
+// Misma regla de acceso que playback: 401/403 si no corresponde.
+export const lessonContentQuery = (lessonId: string, userId: string | null) =>
+  queryOptions({
+    queryKey: ['content', lessonId, userId],
+    queryFn: () => api<LessonContentData>(`/lessons/${lessonId}/content`),
+    // Las frame_url de las demos vienen firmadas con TTL corto.
+    staleTime: 5 * 60_000,
+    retry: false,
+  })

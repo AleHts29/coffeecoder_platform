@@ -69,6 +69,7 @@ type lessonDTO struct {
 	DurationS    int32  `json:"duration_s"`
 	IsFreeSample bool   `json:"is_free_sample"`
 	Position     int32  `json:"position"`
+	Kind         string `json:"kind"`
 }
 
 type moduleDTO struct {
@@ -122,7 +123,7 @@ func toModuleDTOs(in []Module) []moduleDTO {
 		for _, l := range m.Lessons {
 			lessons = append(lessons, lessonDTO{
 				ID: l.LessonID.String(), Title: l.LessonTitle, Description: l.Description,
-				DurationS: l.DurationS, IsFreeSample: l.IsFreeSample, Position: l.LessonPosition,
+				DurationS: l.DurationS, IsFreeSample: l.IsFreeSample, Position: l.LessonPosition, Kind: l.Kind,
 			})
 		}
 		out = append(out, moduleDTO{ID: m.ID.String(), Title: m.Title, Position: m.Position, Lessons: lessons})

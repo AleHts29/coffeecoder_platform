@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/alejandro/coffeecoder/internal/content"
 	"github.com/alejandro/coffeecoder/internal/store"
 )
 
@@ -208,6 +209,8 @@ type AdminLesson struct {
 	IsFreeSample bool
 	Position     int32
 	VideoStatus  string
+	Kind         string
+	BodyMD       string
 }
 
 func (s *AdminService) GetCourse(ctx context.Context, id uuid.UUID) (store.Course, []AdminModule, error) {
@@ -232,6 +235,7 @@ func (s *AdminService) GetCourse(ctx context.Context, id uuid.UUID) (store.Cours
 			ID: uuid.UUID(r.LessonID.Bytes), Title: deref(r.LessonTitle), Description: deref(r.Description),
 			DurationS: derefI(r.DurationS), IsFreeSample: r.IsFreeSample != nil && *r.IsFreeSample,
 			Position: derefI(r.LessonPosition), VideoStatus: deref(r.VideoStatus),
+			Kind: deref(r.Kind), BodyMD: deref(r.BodyMd),
 		})
 	}
 	return c, modules, nil
@@ -290,6 +294,8 @@ type LessonInput struct {
 	Description  string
 	DurationS    int32
 	IsFreeSample bool
+	Kind         string
+	BodyMD       string
 }
 
 func (in *LessonInput) normalize() error {
@@ -299,6 +305,18 @@ func (in *LessonInput) normalize() error {
 	}
 	if in.DurationS < 0 {
 		return fmt.Errorf("%w: la duración no puede ser negativa", ErrInvalid)
+	}
+	if in.Kind == "" {
+		in.Kind = "video"
+	}
+	if in.Kind != "video" && in.Kind != "article" {
+		return fmt.Errorf("%w: el tipo de lección debe ser video o article", ErrInvalid)
+	}
+	if in.Kind == "video" {
+		in.BodyMD = ""
+	} else {
+		// En lectura la duración es el tiempo estimado, no un dato manual.
+		in.DurationS = content.ReadingTime(in.BodyMD)
 	}
 	return nil
 }
@@ -311,16 +329,34 @@ func (s *AdminService) CreateLesson(ctx context.Context, moduleID uuid.UUID, in 
 		return store.Lesson{}, mapErr(err)
 	}
 	return s.q.CreateLesson(ctx, store.CreateLessonParams{
-		ModuleID: moduleID, Title: in.Title, Description: in.Description, DurationS: in.DurationS, IsFreeSample: in.IsFreeSample,
+		ModuleID: moduleID, Title: in.Title, Description: in.Description, DurationS: in.DurationS,
+		IsFreeSample: in.IsFreeSample, Kind: in.Kind, BodyMd: in.BodyMD,
 	})
 }
 
+// UpdateLesson guarda los datos de la lección. Si el tipo cambia, lo
+// aplica antes con SetLessonKind, que solo pasa si no hay video subido.
 func (s *AdminService) UpdateLesson(ctx context.Context, id uuid.UUID, in LessonInput) (store.Lesson, error) {
+	current, err := s.q.GetLesson(ctx, id)
+	if err != nil {
+		return store.Lesson{}, mapErr(err)
+	}
+	if in.Kind == "" {
+		in.Kind = current.Kind
+	}
 	if err := in.normalize(); err != nil {
 		return store.Lesson{}, err
 	}
+	if in.Kind != current.Kind {
+		if _, err := s.q.SetLessonKind(ctx, store.SetLessonKindParams{ID: id, Kind: in.Kind}); errors.Is(err, pgx.ErrNoRows) {
+			return store.Lesson{}, fmt.Errorf("%w: no se puede cambiar el tipo de una lección que ya tiene video; borrá el video primero", ErrInvalid)
+		} else if err != nil {
+			return store.Lesson{}, mapErr(err)
+		}
+	}
 	l, err := s.q.UpdateLesson(ctx, store.UpdateLessonParams{
-		ID: id, Title: in.Title, Description: in.Description, DurationS: in.DurationS, IsFreeSample: in.IsFreeSample,
+		ID: id, Title: in.Title, Description: in.Description, DurationS: in.DurationS,
+		IsFreeSample: in.IsFreeSample, BodyMd: in.BodyMD,
 	})
 	return l, mapErr(err)
 }

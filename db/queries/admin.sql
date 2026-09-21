@@ -66,7 +66,9 @@ SELECT
   l.duration_s,
   l.is_free_sample,
   l.position     AS lesson_position,
-  l.video_status
+  l.video_status,
+  l.kind,
+  l.body_md
 FROM modules m
 LEFT JOIN lessons l ON l.module_id = m.id
 WHERE m.course_id = $1
@@ -99,14 +101,23 @@ SELECT id FROM modules WHERE course_id = $1 ORDER BY position;
 UPDATE modules SET position = $2 WHERE id = $1;
 
 -- name: CreateLesson :one
-INSERT INTO lessons (module_id, title, description, duration_s, is_free_sample, position)
-VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX(position), 0) + 1 FROM lessons WHERE module_id = $1))
+INSERT INTO lessons (module_id, title, description, duration_s, is_free_sample, kind, body_md, position)
+VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT COALESCE(MAX(position), 0) + 1 FROM lessons WHERE module_id = $1))
 RETURNING *;
 
 -- name: UpdateLesson :one
+-- El tipo no se cambia acá: tiene su propia query con guarda.
 UPDATE lessons
-SET title = $2, description = $3, duration_s = $4, is_free_sample = $5
+SET title = $2, description = $3, duration_s = $4, is_free_sample = $5, body_md = $6
 WHERE id = $1
+RETURNING *;
+
+-- name: SetLessonKind :one
+-- Cambiar el tipo solo si la lección no tiene video subido; si no,
+-- no afecta filas y el service devuelve un error accionable.
+UPDATE lessons
+SET kind = $2, body_md = CASE WHEN $2 = 'video' THEN '' ELSE body_md END
+WHERE id = $1 AND video_status = 'none'
 RETURNING *;
 
 -- name: DeleteLesson :exec

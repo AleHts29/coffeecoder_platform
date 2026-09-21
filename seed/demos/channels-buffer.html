@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Channels con y sin buffer en Go</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 12px; background: #1B1B1D; color: #EDEDEB;
+         font-family: 'Space Grotesk', system-ui, sans-serif; }
+  .bar { display: flex; gap: 8px; }
+  button { flex: 1; font: 500 13px 'Space Grotesk', system-ui, sans-serif; border-radius: 8px;
+           padding: 9px 10px; cursor: pointer; background: #242426; color: #EDEDEB;
+           border: 0.5px solid #3A3A3C; }
+  button:hover { background: #2E2E30; border-color: #48484A; }
+  button:focus-visible { outline: 2px solid #E08E33; outline-offset: 2px; }
+  button.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 400; }
+  button[aria-pressed="true"] { background: #E08E33; color: #1B1B1D; border-color: #E08E33; }
+  button.ghost { flex: 0 0 auto; background: transparent; border-color: transparent; color: #9A9A97; }
+  button.ghost:hover { background: #242426; color: #EDEDEB; }
+  svg { display: block; width: 100%; height: auto; margin: 12px 0; }
+  #msg { margin: 0 0 12px; min-height: 40px; font-size: 13px; line-height: 1.5; color: #C9C9C6; }
+</style>
+</head>
+<body>
+  <div class="bar" role="group" aria-label="Capacidad del channel">
+    <button id="cap0" aria-pressed="true">Sin buffer</button>
+    <button id="cap2" aria-pressed="false">Buffer de 2</button>
+  </div>
+
+  <svg viewBox="0 0 380 150" role="img" aria-labelledby="t d">
+    <title id="t">Goroutine emisora, channel y goroutine receptora</title>
+    <desc id="d">El emisor manda valores al channel y el receptor los toma. Si no hay lugar, el emisor queda bloqueado.</desc>
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+        <path d="M2 1L8 5L2 9" fill="none" stroke="#5A5A5C" stroke-width="1.5" stroke-linecap="round"/>
+      </marker>
+    </defs>
+    <rect id="sendBox" x="10" y="40" width="88" height="56" rx="8" fill="#242426" stroke="#3A3A3C" stroke-width="0.5"/>
+    <text x="54" y="63" text-anchor="middle" font-size="14" font-weight="500" fill="#EDEDEB">emisor</text>
+    <text x="54" y="81" text-anchor="middle" font-size="12" fill="#8C8C8A">goroutine</text>
+    <text id="sendState" x="54" y="118" text-anchor="middle" font-size="12" font-family="JetBrains Mono, monospace" fill="#8C8C8A">corriendo</text>
+
+    <line x1="102" y1="68" x2="126" y2="68" stroke="#5A5A5C" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <rect x="132" y="30" width="116" height="76" rx="10" fill="none" stroke="#3A3A3C" stroke-width="0.5" stroke-dasharray="4 3"/>
+    <text x="190" y="22" text-anchor="middle" font-size="12" font-family="JetBrains Mono, monospace" fill="#8C8C8A">chan int</text>
+    <g id="slots"></g>
+    <line x1="252" y1="68" x2="276" y2="68" stroke="#5A5A5C" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+    <rect id="recvBox" x="282" y="40" width="88" height="56" rx="8" fill="#242426" stroke="#3A3A3C" stroke-width="0.5"/>
+    <text x="326" y="63" text-anchor="middle" font-size="14" font-weight="500" fill="#EDEDEB">receptor</text>
+    <text x="326" y="81" text-anchor="middle" font-size="12" fill="#8C8C8A">goroutine</text>
+    <text id="recvState" x="326" y="118" text-anchor="middle" font-size="12" font-family="JetBrains Mono, monospace" fill="#8C8C8A">corriendo</text>
+  </svg>
+
+  <p id="msg" aria-live="polite">Mandá un valor para empezar.</p>
+
+  <div class="bar">
+    <button id="send" class="mono">ch &lt;- v</button>
+    <button id="recv" class="mono">v := &lt;-ch</button>
+    <button id="reset" class="ghost">Reiniciar</button>
+  </div>
+
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var ACCENT = '#E08E33', MUTED = '#8C8C8A', BORDER = '#3A3A3C';
+  var cap = 0, buf = [], sendBlocked = false, recvBlocked = false, n = 0;
+
+  var slots = document.getElementById('slots');
+  var msg = document.getElementById('msg');
+  var sendState = document.getElementById('sendState');
+  var recvState = document.getElementById('recvState');
+  var sendBox = document.getElementById('sendBox');
+  var recvBox = document.getElementById('recvBox');
+  var cap0 = document.getElementById('cap0');
+  var cap2 = document.getElementById('cap2');
+
+  function el(tag, attrs, text) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function drawSlots() {
+    slots.textContent = '';
+    if (cap === 0) {
+      slots.appendChild(el('rect', { x: 156, y: 52, width: 68, height: 32, rx: 6, fill: 'none',
+        stroke: sendBlocked ? ACCENT : BORDER, 'stroke-width': sendBlocked ? 1 : 0.5 }));
+      slots.appendChild(el('text', { x: 190, y: 72, 'text-anchor': 'middle', 'font-size': 12,
+        'font-family': 'JetBrains Mono, monospace', fill: sendBlocked ? ACCENT : MUTED },
+        sendBlocked ? String(n) + ' en mano' : 'sin lugar'));
+      return;
+    }
+    for (var i = 0; i < cap; i++) {
+      var x = 146 + i * 48;
+      slots.appendChild(el('rect', { x: x, y: 52, width: 40, height: 32, rx: 6, fill: 'none',
+        stroke: BORDER, 'stroke-width': 0.5 }));
+      if (buf[i] !== undefined) {
+        slots.appendChild(el('circle', { cx: x + 20, cy: 68, r: 11, fill: ACCENT }));
+        slots.appendChild(el('text', { x: x + 20, y: 72, 'text-anchor': 'middle', 'font-size': 12,
+          'font-family': 'JetBrains Mono, monospace', fill: '#1B1B1D' }, String(buf[i])));
+      }
+    }
+  }
+
+  function state(textEl, box, blocked) {
+    textEl.textContent = blocked ? 'bloqueado' : 'corriendo';
+    textEl.setAttribute('fill', blocked ? ACCENT : MUTED);
+    box.setAttribute('stroke', blocked ? ACCENT : BORDER);
+    box.setAttribute('stroke-width', blocked ? 1 : 0.5);
+  }
+
+  function render(text) {
+    state(sendState, sendBox, sendBlocked);
+    state(recvState, recvBox, recvBlocked);
+    if (text) msg.textContent = text;
+    drawSlots();
+  }
+
+  function send() {
+    if (sendBlocked) { render('El emisor ya está bloqueado: la línea no avanza hasta que alguien reciba.'); return; }
+    n++;
+    if (recvBlocked) { recvBlocked = false; render('Handoff directo: el receptor estaba esperando y tomó ' + n + '.'); return; }
+    if (cap > 0 && buf.length < cap) {
+      buf.push(n);
+      render('El ' + n + ' entró al buffer. El emisor sigue corriendo sin esperar.');
+    } else {
+      sendBlocked = true;
+      render(cap === 0
+        ? 'Sin buffer, enviar bloquea hasta que otra goroutine reciba.'
+        : 'Buffer lleno: el emisor queda bloqueado hasta que se libere un lugar.');
+    }
+  }
+
+  function recv() {
+    if (recvBlocked) { render('El receptor ya está bloqueado esperando un valor.'); return; }
+    if (buf.length > 0) {
+      var v = buf.shift(), extra = '';
+      if (sendBlocked) { sendBlocked = false; buf.push(n); extra = ' Se liberó un lugar y el emisor dejó su ' + n + ' en el buffer.'; }
+      render('Recibió ' + v + '.' + extra);
+      return;
+    }
+    if (sendBlocked) { sendBlocked = false; render('Handoff: recibió ' + n + ' y el emisor se destrabó.'); return; }
+    recvBlocked = true;
+    render('Channel vacío: el receptor se bloquea hasta que llegue un valor.');
+  }
+
+  function setCap(c) {
+    cap = c; buf = []; sendBlocked = false; recvBlocked = false; n = 0;
+    cap0.setAttribute('aria-pressed', String(c === 0));
+    cap2.setAttribute('aria-pressed', String(c === 2));
+    render(c === 0
+      ? 'Sin buffer: cada envío espera a que alguien reciba.'
+      : 'Buffer de 2: entran dos valores sin esperar a nadie.');
+  }
+
+  cap0.addEventListener('click', function () { setCap(0); });
+  cap2.addEventListener('click', function () { setCap(2); });
+  document.getElementById('send').addEventListener('click', send);
+  document.getElementById('recv').addEventListener('click', recv);
+  document.getElementById('reset').addEventListener('click', function () { setCap(cap); });
+  render();
+})();
+</script>
+</body>
+</html>

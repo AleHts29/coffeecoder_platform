@@ -52,7 +52,7 @@ func TestHeartbeat_PositionAndThreshold(t *testing.T) {
 		t.Fatalf("al 90%%: %+v, %v", res, err)
 	}
 	cp, err := q.GetCourseProgress(ctx, store.GetCourseProgressParams{UserID: user, CourseID: testutil.CourseGoDesdeCero})
-	if err != nil || cp.CompletedLessons != 1 || cp.TotalLessons != 10 {
+	if err != nil || cp.CompletedLessons != 1 || cp.TotalLessons != 11 { // 10 video + 1 lectura
 		t.Fatalf("course_progress = %+v, %v", cp, err)
 	}
 	// Más allá de la duración se recorta.
@@ -96,7 +96,7 @@ func TestComplete_AllLessonsReach100(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range rows {
-		if _, err := svc.Complete(ctx, user, r.LessonID); err != nil {
+		if _, err := svc.Complete(ctx, user, r.LessonID, ""); err != nil {
 			t.Fatalf("complete %s: %v", r.LessonTitle, err)
 		}
 	}
@@ -118,7 +118,7 @@ func TestComplete_AllLessonsReach100(t *testing.T) {
 		t.Fatal("con todo completado no hay 'seguí donde quedaste'")
 	}
 	// Completar dos veces es idempotente.
-	if _, err := svc.Complete(ctx, user, rows[0].LessonID); err != nil {
+	if _, err := svc.Complete(ctx, user, rows[0].LessonID, ""); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -129,8 +129,50 @@ func TestCourseProgress_MaterializesOnFirstRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Summary.TotalLessons != 10 || view.Summary.CompletedLessons != 0 || len(view.Lessons) != 0 {
+	if view.Summary.TotalLessons != 11 || view.Summary.CompletedLessons != 0 || len(view.Lessons) != 0 {
 		t.Fatalf("view = %+v", view.Summary)
+	}
+}
+
+// Criterio 7: un curso mixto suma las horas de video y de lectura, y la
+// lectura completa una sola vez aunque se marque dos veces.
+func TestArticleCompletionAndMixedTotals(t *testing.T) {
+	svc, q, user := setup(t)
+	ctx := context.Background()
+
+	article, err := q.GetLesson(ctx, testutil.LessonArticle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if article.Kind != "article" || article.DurationS == 0 {
+		t.Fatalf("lección de lectura del seed = %+v", article)
+	}
+	// Un artículo no acepta heartbeats.
+	if _, err := svc.Heartbeat(ctx, user, testutil.LessonArticle, 10, "UTC"); !errors.Is(err, ErrNotVideo) {
+		t.Fatalf("heartbeat en artículo: %v", err)
+	}
+
+	if _, err := svc.Complete(ctx, user, testutil.LessonArticle, "UTC"); err != nil {
+		t.Fatal(err)
+	}
+	d, err := svc.Dashboard(ctx, user, "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.WeekSeconds != article.DurationS {
+		t.Fatalf("actividad tras leer = %d s, want %d", d.WeekSeconds, article.DurationS)
+	}
+	// Completar de nuevo no vuelve a sumar.
+	if _, err := svc.Complete(ctx, user, testutil.LessonArticle, "UTC"); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = svc.Dashboard(ctx, user, "UTC")
+	if d.WeekSeconds != article.DurationS {
+		t.Fatalf("completar dos veces sumó dos veces: %d s", d.WeekSeconds)
+	}
+	view, err := svc.CourseProgress(ctx, user, "go-desde-cero")
+	if err != nil || view.Summary.CompletedLessons != 1 || view.Summary.TotalLessons != 11 {
+		t.Fatalf("progreso del curso mixto = %+v, %v", view.Summary, err)
 	}
 }
 
@@ -140,7 +182,7 @@ func TestAccessRequired(t *testing.T) {
 	if _, err := svc.Heartbeat(ctx, user, testutil.LessonRedisPay, 10, ""); !errors.Is(err, ErrNoAccess) {
 		t.Fatalf("heartbeat sin acceso: %v", err)
 	}
-	if _, err := svc.Complete(ctx, user, testutil.LessonRedisPay); !errors.Is(err, ErrNoAccess) {
+	if _, err := svc.Complete(ctx, user, testutil.LessonRedisPay, ""); !errors.Is(err, ErrNoAccess) {
 		t.Fatalf("complete sin acceso: %v", err)
 	}
 	if _, err := svc.CourseProgress(ctx, user, "redis-y-colas"); !errors.Is(err, ErrNoAccess) {
@@ -162,7 +204,7 @@ func TestDashboard_CareerSegments(t *testing.T) {
 	if _, err := q.CreateEnrollment(ctx, store.CreateEnrollmentParams{UserID: user, Scope: "career", ScopeID: testutil.CareerBackendGo}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Complete(ctx, user, testutil.LessonGoPaid); err != nil {
+	if _, err := svc.Complete(ctx, user, testutil.LessonGoPaid, ""); err != nil {
 		t.Fatal(err)
 	}
 	d, err := svc.Dashboard(ctx, user, "")
@@ -173,7 +215,7 @@ func TestDashboard_CareerSegments(t *testing.T) {
 		t.Fatalf("careers = %+v", d.Careers)
 	}
 	c := d.Careers[0]
-	if c.TotalLessons != 40 || c.CompletedLessons != 1 {
+	if c.TotalLessons != 41 || c.CompletedLessons != 1 {
 		t.Fatalf("carrera %d/%d", c.CompletedLessons, c.TotalLessons)
 	}
 	if c.Courses[0].Status != StatusInProgress || c.Courses[1].Status != StatusPending {

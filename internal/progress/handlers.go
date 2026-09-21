@@ -58,6 +58,7 @@ type courseProgressDTO struct {
 
 type continueDTO struct {
 	LessonID       string `json:"lesson_id"`
+	Kind           string `json:"kind"`
 	LessonTitle    string `json:"lesson_title"`
 	ModuleTitle    string `json:"module_title"`
 	ModulePosition int32  `json:"module_position"`
@@ -114,7 +115,7 @@ func toDashboardDTO(d Dashboard) dashboardDTO {
 	if d.Continue != nil {
 		c := d.Continue
 		out.Continue = &continueDTO{
-			LessonID: c.LessonID.String(), LessonTitle: c.LessonTitle, ModuleTitle: c.ModuleTitle,
+			LessonID: c.LessonID.String(), Kind: c.Kind, LessonTitle: c.LessonTitle, ModuleTitle: c.ModuleTitle,
 			ModulePosition: c.ModulePosition, Seconds: c.Seconds, DurationS: c.DurationS,
 			CourseSlug: c.CourseSlug, CourseTitle: c.CourseTitle,
 		}
@@ -174,7 +175,10 @@ func (h *Handler) complete(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	lp, err := h.svc.Complete(r.Context(), id.UserID, lessonID)
+	// tz opcional: el cliente la manda para sumar bien la actividad del día.
+	var req heartbeatRequest
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	lp, err := h.svc.Complete(r.Context(), id.UserID, lessonID, req.TZ)
 	if h.handleErr(w, "complete", err) {
 		return
 	}
@@ -218,6 +222,8 @@ func (h *Handler) handleErr(w http.ResponseWriter, op string, err error) bool {
 		httpx.Error(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, ErrNoAccess):
 		httpx.Error(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, ErrNotVideo):
+		httpx.Error(w, http.StatusBadRequest, err.Error())
 	default:
 		h.logger.Error("progress: "+op, "err", err)
 		httpx.Error(w, http.StatusInternalServerError, "algo salió mal, reintentá")

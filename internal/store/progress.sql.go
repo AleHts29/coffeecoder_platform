@@ -18,6 +18,7 @@ SELECT
   lp.seconds,
   l.title      AS lesson_title,
   l.duration_s,
+  l.kind,
   m.title      AS module_title,
   m.position   AS module_position,
   c.id         AS course_id,
@@ -37,6 +38,7 @@ type GetContinueWatchingRow struct {
 	Seconds        int32     `json:"seconds"`
 	LessonTitle    string    `json:"lesson_title"`
 	DurationS      int32     `json:"duration_s"`
+	Kind           string    `json:"kind"`
 	ModuleTitle    string    `json:"module_title"`
 	ModulePosition int32     `json:"module_position"`
 	CourseID       uuid.UUID `json:"course_id"`
@@ -53,6 +55,7 @@ func (q *Queries) GetContinueWatching(ctx context.Context, userID uuid.UUID) (Ge
 		&i.Seconds,
 		&i.LessonTitle,
 		&i.DurationS,
+		&i.Kind,
 		&i.ModuleTitle,
 		&i.ModulePosition,
 		&i.CourseID,

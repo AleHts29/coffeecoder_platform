@@ -16,7 +16,7 @@
   /* Texto */
   --color-ink: #EDEDEB;         /* primario */
   --color-ink-soft: #9A9A97;    /* secundario */
-  --color-ink-faint: #7A7A78;   /* terciario / metadatos */
+  --color-ink-faint: #8C8C8A;   /* terciario / metadatos (AA 5.47:1 sobre surface-0) */
   --color-ink-disabled: #48484A;
 
   /* Acento caramelo */

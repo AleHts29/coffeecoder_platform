@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { admin, adminCourseQuery, move } from '@/lib/admin'
+import { admin, adminCourseQuery, adminDemosQuery, move } from '@/lib/admin'
 import { ApiError } from '@/lib/api'
 import { useTitle } from '@/lib/useTitle'
 import { formatClock, pad2 } from '@/lib/format'
@@ -10,9 +10,11 @@ import { Field } from '@/components/Field'
 import { ProductForm } from '@/components/ProductForm'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { VideoUpload } from '@/components/VideoUpload'
+import { ArticleEditor } from '@/components/ArticleEditor'
+import { DemoLibrary } from './Demos'
 import { ErrorState, Loading } from '@/components/PageState'
 import { StatusBadge } from './Content'
-import type { AdminLesson, AdminModule, LessonInput } from '@/types/admin'
+import type { AdminLesson, AdminModule, LessonInput, LessonKind } from '@/types/admin'
 
 // Editor de curso: datos, módulos y lecciones con reordenamiento
 // (botones subir/bajar: accesibles y sin librería), upload de video.
@@ -87,6 +89,8 @@ export function CourseEditor({ id }: { id: string }) {
         <InlineAdd label="Nuevo módulo" placeholder="Título del módulo" busy={addModule.isPending} onAdd={(title) => addModule.mutate(title)} />
       </section>
 
+      <DemoLibrary courseId={id} />
+
       <ConfirmDialog
         open={confirmDelete}
         title="¿Borrar este curso?"
@@ -154,7 +158,7 @@ function ModuleCard({ module, courseId, first, last, onMove, onError }: { module
         ))}
       </ol>
       <div className="p-3">
-        <LessonForm submitLabel="Agregar lección" busy={addLesson.isPending} onSubmit={(input) => addLesson.mutate(input)} />
+        <LessonForm courseId={courseId} submitLabel="Agregar lección" busy={addLesson.isPending} onSubmit={(input) => addLesson.mutate(input)} />
       </div>
       <ConfirmDialog open={confirm} title="¿Borrar este módulo?" message={`Se borran sus ${module.lessons.length} lecciones y sus videos quedan huérfanos en el provider.`} confirmLabel="Borrar módulo" busy={remove.isPending} onConfirm={() => remove.mutate()} onCancel={() => setConfirm(false)} />
     </div>
@@ -175,9 +179,12 @@ function LessonRow({ lesson, courseId, first, last, onMove, onError }: { lesson:
         <span className="w-6 font-mono text-xs text-ink-faint">{pad2(lesson.position)}</span>
         <span className="flex-1 text-sm text-ink">
           {lesson.title}
+          {lesson.kind === 'article' && <span className="ml-2 font-mono text-xs text-ink-faint">lectura</span>}
           {lesson.is_free_sample && <span className="ml-2 font-mono text-xs text-accent">gratis</span>}
         </span>
-        <span className="font-mono text-xs text-ink-faint">{formatClock(lesson.duration_s)}</span>
+        <span className="font-mono text-xs text-ink-faint">
+          {lesson.kind === 'article' ? `${Math.max(1, Math.round(lesson.duration_s / 60))} min` : formatClock(lesson.duration_s)}
+        </span>
         <MoveButtons first={first} last={last} onMove={onMove} label="lección" />
         <Button variant="ghost" className="h-9" onClick={() => setEditing((e) => !e)}>
           {editing ? 'Cerrar' : 'Editar'}
@@ -186,12 +193,16 @@ function LessonRow({ lesson, courseId, first, last, onMove, onError }: { lesson:
           Borrar
         </Button>
       </div>
-      <div className="pl-8">
-        <VideoUpload lessonId={lesson.id} courseId={courseId} status={lesson.video_status} />
-      </div>
-      {editing && (
+      {lesson.kind === 'video' ? (
         <div className="pl-8">
-          <LessonForm initial={lesson} submitLabel="Guardar lección" busy={update.isPending} onSubmit={(input) => update.mutate(input)} />
+          <VideoUpload lessonId={lesson.id} courseId={courseId} status={lesson.video_status} />
+        </div>
+      ) : (
+        <p className="pl-8 font-mono text-xs text-ink-faint">lectura · {Math.max(1, Math.round(lesson.duration_s / 60))} min estimados</p>
+      )}
+      {editing && (
+        <div className="pl-8 lg:pl-0">
+          <LessonForm courseId={courseId} initial={lesson} submitLabel="Guardar lección" busy={update.isPending} onSubmit={(input) => update.mutate(input)} />
         </div>
       )}
       <ConfirmDialog open={confirm} title="¿Borrar esta lección?" message="Se pierde el progreso de los alumnos en ella." confirmLabel="Borrar lección" busy={remove.isPending} onConfirm={() => remove.mutate()} onCancel={() => setConfirm(false)} />
@@ -199,34 +210,92 @@ function LessonRow({ lesson, courseId, first, last, onMove, onError }: { lesson:
   )
 }
 
-function LessonForm({ initial, submitLabel, busy, onSubmit }: { initial?: AdminLesson; submitLabel: string; busy: boolean; onSubmit: (input: LessonInput) => void }) {
+function LessonForm({
+  courseId,
+  initial,
+  submitLabel,
+  busy,
+  onSubmit,
+}: {
+  courseId: string
+  initial?: AdminLesson
+  submitLabel: string
+  busy: boolean
+  onSubmit: (input: LessonInput) => void
+}) {
+  const [kind, setKind] = useState<LessonKind>(initial?.kind ?? 'video')
+  const [body, setBody] = useState(initial?.body_md ?? '')
+  const demos = useQuery({ ...adminDemosQuery(courseId), enabled: kind === 'article' })
+  // El tipo no se puede cambiar si ya hay un video cargado.
+  const lockedToVideo = !!initial && initial.video_status !== 'none'
+
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const f = new FormData(e.currentTarget)
     onSubmit({
       title: String(f.get('title')),
       description: String(f.get('description')),
-      duration_s: Math.round(Number(f.get('minutes') || 0) * 60),
+      duration_s: kind === 'article' ? 0 : Math.round(Number(f.get('minutes') || 0) * 60),
       is_free_sample: f.get('free') === 'on',
+      kind,
+      body_md: kind === 'article' ? body : '',
     })
-    if (!initial) e.currentTarget.reset()
+    if (!initial) {
+      e.currentTarget.reset()
+      setBody('')
+    }
   }
+
   return (
-    <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[1fr_120px_auto_auto]" noValidate>
-      <Field label="Título" name="title" defaultValue={initial?.title ?? ''} required />
-      <Field label="Minutos" name="minutes" type="number" min={0} step="0.5" defaultValue={initial ? String(Math.round(initial.duration_s / 6) / 10) : ''} className="font-mono text-xs" hint="la duración real la trae el video" />
-      <label className="flex items-end gap-2 pb-3 text-sm text-ink-soft">
-        <input type="checkbox" name="free" defaultChecked={initial?.is_free_sample} className="size-4 accent-accent" /> gratis
-      </label>
-      <div className="flex items-end pb-0.5">
-        <Button variant="secondary" type="submit" disabled={busy}>
-          {submitLabel}
-        </Button>
+    <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+      <div className="grid gap-3 sm:grid-cols-[1fr_130px_120px_auto_auto]">
+        <Field label="Título" name="title" defaultValue={initial?.title ?? ''} required />
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="text-ink-soft">Tipo</span>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as LessonKind)}
+            disabled={lockedToVideo}
+            title={lockedToVideo ? 'Esta lección ya tiene video: borralo para convertirla en lectura' : undefined}
+            className="hairline-strong h-11 rounded-control bg-surface-0 px-2 font-mono text-xs text-ink disabled:text-ink-disabled"
+          >
+            <option value="video">Video</option>
+            <option value="article">Lectura</option>
+          </select>
+        </label>
+        {kind === 'video' ? (
+          <Field
+            label="Minutos"
+            name="minutes"
+            type="number"
+            min={0}
+            step="0.5"
+            defaultValue={initial ? String(Math.round(initial.duration_s / 6) / 10) : ''}
+            className="font-mono text-xs"
+            hint="la duración real la trae el video"
+          />
+        ) : (
+          <p className="flex flex-col gap-1.5 text-sm">
+            <span className="text-ink-soft">Duración</span>
+            <span className="flex h-11 items-center font-mono text-xs text-ink-faint">se calcula sola</span>
+          </p>
+        )}
+        <label className="flex items-end gap-2 pb-3 text-sm text-ink-soft">
+          <input type="checkbox" name="free" defaultChecked={initial?.is_free_sample} className="size-4 accent-accent" /> gratis
+        </label>
+        <div className="flex items-end pb-0.5">
+          <Button variant="secondary" type="submit" disabled={busy}>
+            {submitLabel}
+          </Button>
+        </div>
       </div>
-      <label className="flex flex-col gap-1.5 text-sm sm:col-span-4">
-        <span className="text-ink-soft">Resumen</span>
+
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="text-ink-soft">{kind === 'article' ? 'Bajada' : 'Resumen'}</span>
         <textarea name="description" defaultValue={initial?.description ?? ''} rows={2} className="hairline-strong rounded-control bg-surface-0 px-3 py-2 text-ink" />
       </label>
+
+      {kind === 'article' && <ArticleEditor value={body} onChange={setBody} demos={demos.data ?? []} />}
     </form>
   )
 }

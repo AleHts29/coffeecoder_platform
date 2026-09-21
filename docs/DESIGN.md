@@ -22,7 +22,7 @@ caramelo, la tipografía y los micro-detalles de marca. La calidez de
 | border-strong | `#3A3A3C` | bordes con énfasis |
 | ink | `#EDEDEB` | texto primario |
 | ink-soft | `#9A9A97` | texto secundario |
-| ink-faint | `#7A7A78` | metadatos, terciario |
+| ink-faint | `#8C8C8A` | metadatos, terciario (AA 4.6:1 en surface-2) |
 | ink-disabled | `#48484A` | deshabilitado |
 | accent | `#E08E33` | caramelo: acción primaria, progreso, activo |
 | accent-hover | `#EDA04D` | hover del acento |
@@ -116,10 +116,45 @@ Estados vacíos con invitación a actuar, no con lamento. Los momentos
 de marca (bienvenida, curso completado) pueden usar guiños de café
 con sobriedad — un guiño por pantalla como máximo.
 
+## Lector y demos
+
+Una lección puede ser de **lectura** en vez de video (ver
+`docs/DEMOS.md` para el contrato de las demos).
+
+**Lector.** Columna de 68ch, Space Grotesk 15px / 1.7 en `ink-soft`;
+`strong` en `ink` peso 500. Títulos de sección con la escala de la UI
+(h2 1.5rem, h3 1.15rem) en `ink`, con aire arriba. Listas con marcador
+en `ink-faint`. Citas con barra izquierda caramelo de 2px. Tablas con
+líneas de 0.5px en `border`. El eyebrow del player suma el tiempo
+estimado: `módulo 03 · lección 05 · lectura 2 min` en mono.
+
+**Código.** Card `surface-1`, radio 12px, JetBrains Mono 13px. Tema
+propio "Grafito": comentarios `ink-faint`, palabras clave `ink-soft`,
+tipos `accent-hover`, cadenas y números en caramelo (el dato que el
+alumno busca), el resto `ink`. Sin fondos por línea ni números de línea.
+Código en línea: `surface-1` con borde de 0.5px y radio chico.
+
+**Card de demo.** `figure` sobre `surface-1`, borde 0.5px, radio 12px,
+padding 16px. Rótulo arriba en mono `ink-faint` con el ícono
+`ti-adjustments-horizontal` en caramelo: `demo interactiva · <título>`.
+Debajo, la demo a ancho completo, con su alto declarado y radio de
+control (8px). La demo trae su propio fondo `surface-1`, así que se
+funde con la card. Nunca dos demos seguidas sin texto entre medio.
+
+**Lecturas en listas.** En currícula y sidebar, una lección de lectura
+lleva el ícono `ti-file-text` en `ink-faint` antes del título y su
+duración en minutos (`6 min`) en vez de `mm:ss`. El hero del dashboard
+dice "seguí leyendo" y muestra el tiempo estimado, sin barra de avance:
+en un artículo no hay posición, se completa al llegar al final.
+
 ## Accesibilidad
 
-Contraste AA mínimo en todos los pares (la paleta ya lo cumple:
-verificar al crear combinaciones nuevas). Focus visible con ring
+Contraste AA mínimo en todos los pares. `ink-faint` pasó de `#7A7A78`
+a `#8C8C8A` (2026-09-21, aprobado por el dueño) porque el valor viejo
+no llegaba a 4.5:1 para texto chico: ahora da 5.47 / 5.10 / 4.60 sobre
+surface-0 / 1 / 2. El tema de código usa el mismo valor en los
+comentarios por el mismo motivo. Verificar al crear combinaciones
+nuevas. Focus visible con ring
 caramelo. Targets táctiles ≥ 44px en mobile. `prefers-reduced-motion`
 respetado: las transiciones son cortas (120–150 ms) y solo de
 background/color; nada se anima solo.

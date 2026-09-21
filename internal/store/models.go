@@ -65,6 +65,17 @@ type DailyActivity struct {
 	Seconds int32       `json:"seconds"`
 }
 
+type Demo struct {
+	ID        uuid.UUID          `json:"id"`
+	CourseID  uuid.UUID          `json:"course_id"`
+	Slug      string             `json:"slug"`
+	Title     string             `json:"title"`
+	Html      string             `json:"html"`
+	HeightPx  int32              `json:"height_px"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Enrollment struct {
 	ID          uuid.UUID          `json:"id"`
 	UserID      uuid.UUID          `json:"user_id"`
@@ -88,6 +99,8 @@ type Lesson struct {
 	Position      int32              `json:"position"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	Kind          string             `json:"kind"`
+	BodyMd        string             `json:"body_md"`
 }
 
 type LessonProgress struct {

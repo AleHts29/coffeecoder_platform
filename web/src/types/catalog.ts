@@ -39,6 +39,8 @@ export interface CareerDetail extends CareerSummary {
   courses: CourseSummary[]
 }
 
+export type LessonKind = 'video' | 'article'
+
 export interface Lesson {
   id: string
   title: string
@@ -46,6 +48,7 @@ export interface Lesson {
   duration_s: number
   is_free_sample: boolean
   position: number
+  kind: LessonKind
 }
 
 export interface Module {

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -19,12 +20,13 @@ const maxWebhookBody = 64 << 10
 
 type Handler struct {
 	svc           *Service
+	images        ImageStore
 	webhookSecret string
 	logger        *slog.Logger
 }
 
-func NewHandler(svc *Service, webhookSecret string, logger *slog.Logger) *Handler {
-	return &Handler{svc: svc, webhookSecret: webhookSecret, logger: logger}
+func NewHandler(svc *Service, images ImageStore, webhookSecret string, logger *slog.Logger) *Handler {
+	return &Handler{svc: svc, images: images, webhookSecret: webhookSecret, logger: logger}
 }
 
 // MountPlayback va bajo auth opcional: los visitantes pueden ver las
@@ -42,6 +44,7 @@ func (h *Handler) MountWebhooks(r chi.Router) {
 func (h *Handler) MountAdmin(r chi.Router) {
 	r.Post("/lessons/{id}/video", h.startUpload)
 	r.Post("/lessons/{id}/video/sync", h.syncVideo)
+	r.Post("/images", h.uploadImage)
 }
 
 // --- DTOs ---
@@ -157,6 +160,35 @@ func (h *Handler) syncVideo(w http.ResponseWriter, r *http.Request) {
 	default:
 		httpx.JSON(w, http.StatusOK, toLessonVideoDTO(lesson))
 	}
+}
+
+// uploadImage recibe el archivo crudo en el body (Content-Type de la
+// imagen) y devuelve la URL pública para pegar en el Markdown.
+func (h *Handler) uploadImage(w http.ResponseWriter, r *http.Request) {
+	contentType := r.Header.Get("Content-Type")
+	data, err := io.ReadAll(io.LimitReader(r.Body, MaxImageBytes+1))
+	if err != nil {
+		httpx.Error(w, http.StatusBadRequest, "no pudimos leer el archivo")
+		return
+	}
+	if len(data) == 0 {
+		httpx.Error(w, http.StatusBadRequest, "el archivo está vacío")
+		return
+	}
+	if len(data) > MaxImageBytes {
+		httpx.Error(w, http.StatusRequestEntityTooLarge, "la imagen supera los 5 MB")
+		return
+	}
+	url, err := h.images.Put(r.Context(), data, contentType)
+	if err != nil {
+		if strings.Contains(err.Error(), "no soportado") {
+			httpx.Error(w, http.StatusBadRequest, "formato no soportado: usá JPG, PNG, WebP, GIF, AVIF o SVG")
+			return
+		}
+		h.fail(w, "upload image", err)
+		return
+	}
+	httpx.JSON(w, http.StatusCreated, map[string]string{"url": url})
 }
 
 func (h *Handler) fail(w http.ResponseWriter, op string, err error) {

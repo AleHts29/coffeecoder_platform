@@ -1,8 +1,9 @@
 import { queryOptions } from '@tanstack/react-query'
 import { api } from './api'
 import type {
-  AdminCareerDetail, AdminCourseDetail, AdminLesson, AdminModule, AdminOrder, AdminProduct,
-  LessonInput, ProductInput, Student, StudentDetail, StudentEnrollment, UploadTicket,
+  AdminCareerDetail, AdminCourseDetail, AdminDemo, AdminDemoDetail, AdminLesson, AdminModule,
+  AdminOrder, AdminProduct, DemoInput, LessonInput, ProductInput, Student, StudentDetail,
+  StudentEnrollment, UploadTicket,
 } from '@/types/admin'
 
 const json = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) })
@@ -16,6 +17,8 @@ export const adminCourseQuery = (id: string) => queryOptions({ queryKey: ['admin
 export const adminCareerQuery = (id: string) => queryOptions({ queryKey: ['admin', 'careers', id], queryFn: () => api<AdminCareerDetail>(`/admin/careers/${id}`) })
 export const adminOrdersQuery = () => queryOptions({ queryKey: ['admin', 'orders'], queryFn: () => api<AdminOrder[]>('/admin/orders?limit=200') })
 export const adminStudentsQuery = (q: string) => queryOptions({ queryKey: ['admin', 'students', q], queryFn: () => api<Student[]>(`/admin/students?q=${encodeURIComponent(q)}&limit=100`) })
+export const adminDemosQuery = (courseId: string) =>
+  queryOptions({ queryKey: ['admin', 'demos', courseId], queryFn: () => api<AdminDemo[]>(`/admin/courses/${courseId}/demos`) })
 export const adminStudentQuery = (id: string) => queryOptions({ queryKey: ['admin', 'students', 'detail', id], queryFn: () => api<StudentDetail>(`/admin/students/${id}`) })
 
 // Mutaciones
@@ -40,6 +43,17 @@ export const admin = {
 
   startUpload: (lessonId: string) => api<{ upload: UploadTicket }>(`/admin/lessons/${lessonId}/video`, { method: 'POST' }),
   syncVideo: (lessonId: string) => api<{ id: string; video_status: string; duration_s: number }>(`/admin/lessons/${lessonId}/video/sync`, { method: 'POST' }),
+
+  listDemos: (courseId: string) => api<AdminDemo[]>(`/admin/courses/${courseId}/demos`),
+  getDemo: (id: string) => api<AdminDemoDetail>(`/admin/demos/${id}`),
+  createDemo: (courseId: string, input: DemoInput) => api<AdminDemoDetail>(`/admin/courses/${courseId}/demos`, json(input)),
+  updateDemo: (id: string, input: DemoInput) => api<AdminDemoDetail>(`/admin/demos/${id}`, put(input)),
+  deleteDemo: (id: string) => api<void>(`/admin/demos/${id}`, del),
+
+  // La imagen viaja cruda con su Content-Type; el backend la guarda y
+  // devuelve la URL pública para pegar en el Markdown.
+  uploadImage: (file: File) =>
+    api<{ url: string }>('/admin/images', { method: 'POST', body: file, headers: { 'Content-Type': file.type } }),
 
   refund: (orderId: string) => api<AdminOrder>(`/admin/orders/${orderId}/refund`, { method: 'POST' }),
   enroll: (userId: string, scope: 'course' | 'career', scopeId: string) => api<StudentEnrollment>(`/admin/students/${userId}/enrollments`, json({ scope, scope_id: scopeId })),

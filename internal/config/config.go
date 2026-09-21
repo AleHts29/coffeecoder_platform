@@ -20,6 +20,7 @@ type Config struct {
 
 	OAuth   OAuthConfig
 	Video   VideoConfig
+	Images  ImageConfig
 	Bunny   BunnyConfig
 	Billing BillingConfig
 	MP      MercadoPagoConfig
@@ -50,6 +51,18 @@ type VideoConfig struct {
 	Provider    string // bunny | fake
 	FakeURL     string
 	PlaybackTTL time.Duration
+}
+
+// ImageConfig: dónde van las imágenes de los artículos. En producción
+// Bunny Storage detrás de un pull zone; en desarrollo, disco local
+// servido por el propio binario en /uploads.
+type ImageConfig struct {
+	Provider      string // bunny | local
+	StorageHost   string // storage.bunnycdn.com o el regional
+	StorageZone   string
+	StorageKey    string
+	PublicBaseURL string // pull zone público de la storage zone
+	LocalDir      string
 }
 
 type OAuthConfig struct {
@@ -93,6 +106,14 @@ func Load() (Config, error) {
 			Provider: getenv("VIDEO_PROVIDER", "bunny"),
 			FakeURL:  getenv("FAKE_VIDEO_URL", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"),
 		},
+		Images: ImageConfig{
+			Provider:      getenv("IMAGE_PROVIDER", "bunny"),
+			StorageHost:   getenv("BUNNY_STORAGE_HOST", "storage.bunnycdn.com"),
+			StorageZone:   os.Getenv("BUNNY_STORAGE_ZONE"),
+			StorageKey:    os.Getenv("BUNNY_STORAGE_KEY"),
+			PublicBaseURL: os.Getenv("BUNNY_STORAGE_PUBLIC_URL"),
+			LocalDir:      getenv("IMAGE_LOCAL_DIR", "var/uploads"),
+		},
 		Bunny: BunnyConfig{
 			LibraryID:     os.Getenv("BUNNY_LIBRARY_ID"),
 			APIKey:        os.Getenv("BUNNY_API_KEY"),
@@ -132,6 +153,12 @@ func Load() (Config, error) {
 	}
 	if cfg.Env != "development" && cfg.Video.Provider == "fake" {
 		return cfg, fmt.Errorf("VIDEO_PROVIDER=fake solo se permite en development")
+	}
+	if cfg.Images.Provider != "bunny" && cfg.Images.Provider != "local" {
+		return cfg, fmt.Errorf("IMAGE_PROVIDER inválido: %q (bunny | local)", cfg.Images.Provider)
+	}
+	if cfg.Env != "development" && cfg.Images.Provider == "local" {
+		return cfg, fmt.Errorf("IMAGE_PROVIDER=local solo se permite en development")
 	}
 	if cfg.Billing.USDRate, err = parseFloat("BILLING_USD_RATE", 0); err != nil {
 		return cfg, err

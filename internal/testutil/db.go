@@ -80,7 +80,12 @@ func prepare(url string) error {
 			return err
 		}
 	}
-	return execFile(ctx, filepath.Join(root, "db", "seed", "dev.sql"))
+	for _, f := range []string{"dev.sql", "articles.sql"} {
+		if err := execFile(ctx, filepath.Join(root, "db", "seed", f)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func execFile(ctx context.Context, path string) error {

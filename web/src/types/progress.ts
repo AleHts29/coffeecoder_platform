@@ -37,6 +37,7 @@ export interface CareerCard {
 
 export interface ContinueWatching {
   lesson_id: string
+  kind: 'video' | 'article' 
   lesson_title: string
   module_title: string
   module_position: number

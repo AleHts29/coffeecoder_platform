@@ -14,6 +14,50 @@
   border-color: var(--color-border-strong);
 }
 
+/* Prosa de lecciones de lectura y apuntes. Columna corta (~68ch),
+   Space Grotesk 15px/1.7. Los títulos siguen la escala de la UI. */
+@layer components {
+  .prose-cc {
+    max-width: 68ch;
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--color-ink-soft);
+  }
+  .prose-cc > * + * { margin-top: 1.1em; }
+  .prose-cc h2 {
+    margin-top: 2em;
+    font-size: 1.5rem;
+    line-height: 1.3;
+    color: var(--color-ink);
+  }
+  .prose-cc h3 {
+    margin-top: 1.6em;
+    font-size: 1.15rem;
+    color: var(--color-ink);
+  }
+  .prose-cc strong { color: var(--color-ink); font-weight: 500; }
+  .prose-cc ul, .prose-cc ol { padding-left: 1.3em; }
+  .prose-cc ul { list-style: disc; }
+  .prose-cc ol { list-style: decimal; }
+  .prose-cc li + li { margin-top: 0.4em; }
+  .prose-cc li::marker { color: var(--color-ink-faint); }
+  .prose-cc blockquote {
+    border-left: 2px solid var(--color-accent);
+    padding-left: 1em;
+    color: var(--color-ink-soft);
+  }
+  .prose-cc hr { border: 0; border-top: 0.5px solid var(--color-border); margin: 2em 0; }
+  .prose-cc table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .prose-cc th, .prose-cc td {
+    border-bottom: 0.5px solid var(--color-border);
+    padding: 0.5em 0.75em;
+    text-align: left;
+  }
+  .prose-cc th { color: var(--color-ink); font-weight: 500; }
+  /* Las figuras (demos) rompen la columna de texto a ancho completo. */
+  .prose-cc figure { max-width: none; }
+}
+
 @layer base {
   html {
     color-scheme: dark;

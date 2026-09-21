@@ -68,6 +68,7 @@ SELECT
   l.description,
   l.duration_s,
   l.is_free_sample,
+  l.kind,
   l.position   AS lesson_position
 FROM modules m
 JOIN lessons l ON l.module_id = m.id
@@ -84,6 +85,7 @@ type GetCourseCurriculumRow struct {
 	Description    string    `json:"description"`
 	DurationS      int32     `json:"duration_s"`
 	IsFreeSample   bool      `json:"is_free_sample"`
+	Kind           string    `json:"kind"`
 	LessonPosition int32     `json:"lesson_position"`
 }
 
@@ -108,6 +110,7 @@ func (q *Queries) GetCourseCurriculum(ctx context.Context, courseID uuid.UUID) (
 			&i.Description,
 			&i.DurationS,
 			&i.IsFreeSample,
+			&i.Kind,
 			&i.LessonPosition,
 		); err != nil {
 			return nil, err

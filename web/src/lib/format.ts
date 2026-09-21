@@ -30,3 +30,9 @@ export function pad2(n: number): string {
 export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
+
+/** Duración de una lección según su tipo: `12:30` en video, `6 min` en lectura. */
+export function formatLessonDuration(seconds: number, kind: 'video' | 'article'): string {
+  if (kind === 'article') return `${Math.max(1, Math.round(seconds / 60))} min`
+  return formatClock(seconds)
+}
