@@ -7,6 +7,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch: # redeploy manual desde la pestaña Actions
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -66,7 +67,7 @@ jobs:
   deploy:
     needs: [go, web, image]
     # Se saltea hasta que exista la variable de repositorio RAILWAY_SERVICE.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RAILWAY_SERVICE != ''
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.RAILWAY_SERVICE != ''
     runs-on: ubuntu-latest
     environment: staging
     concurrency:
