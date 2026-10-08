@@ -65,11 +65,25 @@ contra sus ocho criterios.
 - **Portabilidad:** la idea es mudarse a DigitalOcean más adelante; para
   eso alcanza con cambiar el job `deploy`. Nada del código depende de
   Railway.
-- **Pendiente del dueño:** crear el proyecto en Railway (servicio +
-  Postgres), cargar las variables de entorno, y en GitHub el secret
-  `RAILWAY_TOKEN` (environment `staging`) y la variable de repositorio
-  `RAILWAY_SERVICE`. Mientras esa variable no exista, el job `deploy` se
-  saltea y el CI queda en verde.
+- **Staging en marcha** desde el 2026-10-08:
+  https://coffeecoder-staging.up.railway.app (proyecto `coffeecoder`,
+  environment `staging`, servicio `coffeecoder` + Postgres). Verificado
+  desde afuera: healthz, PWA, rutas del SPA, API, OG con el dominio.
+  La base tiene el esquema y las categorías, sin cursos ni usuarios.
+- **Configuración:** secret `RAILWAY_TOKEN` (token de proyecto del
+  environment `staging`) en el environment `staging` de GitHub; variable
+  de repositorio `RAILWAY_SERVICE=coffeecoder`. Redeploy manual: Actions →
+  ci → Run workflow.
+- **Si falla el deploy:** el error de `railway up` se publica como
+  anotación del job (los logs piden login; las anotaciones no).
+- **Lecciones de la puesta en marcha:** Railway acumula cambios hasta
+  apretar Deploy (sin eso el servicio no existe: `Service not found`); el
+  servicio nace con nombre al azar y hay que renombrarlo; y
+  `${{RAILWAY_PUBLIC_DOMAIN}}` se resolvió vacío, así que
+  `PUBLIC_BASE_URL` y `FRONTEND_URL` van con el dominio literal.
+- **Pendiente:** credenciales reales (Bunny, Mercado Pago de prueba,
+  Resend; hoy `RESEND_API_KEY` es un placeholder), contenido y usuario
+  admin en staging, y el environment de producción.
 
 ## Categorías de catálogo (2026-09-21)
 
@@ -218,8 +232,8 @@ Errores siempre `{ "error": "mensaje en español" }`.
 2. Decisión de diseño: `ink-faint` #7A7A78 no cumple AA 4.5:1 para texto chico
    (4.28 / 4.00 / 3.60 sobre los tres fondos). Propuesta: `#8C8C8A`.
 3. Admin real: hoy el rol se asigna por SQL.
-4. Deploy: el pipeline está listo (ver "CI/CD y deploy"); falta crear el
-   proyecto en Railway y cargar variables y token.
+4. Deploy: staging en marcha (ver "CI/CD y deploy"); falta producción
+   y cargar contenido y usuario admin en staging.
 
 ## Limitaciones conocidas
 
