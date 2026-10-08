@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.env
+bin/
+var/
+web/node_modules/
+web/dist/
+seed/
+scripts/
+docs/

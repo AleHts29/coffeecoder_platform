@@ -51,13 +51,7 @@ migrate: ## Aplica las migraciones pendientes (registro en schema_migrations)
 
 .PHONY: migrate-url
 migrate-url:
-	@psql "$(URL)" -q -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
-	@for f in db/migrations/*.sql; do \
-		n=$$(basename $$f); \
-		if psql "$(URL)" -Atc "SELECT 1 FROM schema_migrations WHERE name='$$n'" | grep -q 1; then continue; fi; \
-		echo "==> $$n"; \
-		psql "$(URL)" -q -v ON_ERROR_STOP=1 -f $$f && psql "$(URL)" -q -c "INSERT INTO schema_migrations (name) VALUES ('$$n')"; \
-	done
+	@DATABASE_URL="$(URL)" $(GO) run ./cmd/api migrate
 
 .PHONY: seed
 seed: ## Carga contenido de desarrollo (db/seed/*.sql, idempotente)

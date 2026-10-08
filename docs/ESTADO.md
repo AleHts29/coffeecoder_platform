@@ -3,8 +3,7 @@
 > Documento vivo. Lo actualiza Claude Code al cerrar cada implementación y
 > lo pushea; Claude web lo lee del repo conectado por GitHub para planificar
 > sobre el estado real.
-> Última actualización: 2026-09-21 (categorías, curso de producción musical,
-> demos con audio).
+> Última actualización: 2026-10-08 (CI/CD con GitHub Actions → Railway).
 
 ## Cómo trabajamos
 
@@ -46,6 +45,31 @@ contra sus ocho criterios.
 | P7 Admin | CRUD carreras/cursos/módulos/lecciones con reorden transaccional, camino de carrera, upload TUS con estado, ventas con reembolso, alumnos con alta manual y revocación; UI `/admin/*` | tests + e2e + capturas |
 | P8 Pulido | binario sirve la PWA (`WEB_DIST`) con OG por producto, chunks por ruta, service worker, header móvil, bottom sheet del player | Lighthouse prod: perf 85 / a11y 95 / bp 100 / SEO 100 |
 | Artículos y demos | `lessons.kind` (video/article) + `body_md`; tabla `demos` por curso; `GET /lessons/{id}/content`; frame firmado con CSP sandbox; lector con Markdown + Shiki; editor Markdown con preview, "Insertar demo" y subida de imágenes; biblioteca de demos en el admin | tests + e2e + navegador (a11y 100 en el lector) |
+
+## CI/CD y deploy (2026-10-08)
+
+- **Imagen Docker** (`Dockerfile`): PWA + binario Go estático sobre
+  distroless sin root, ~16 MB. `APP_ENV=production`, `WEB_DIST=/app/web`.
+  El binario escucha en `PORT` si `HTTP_ADDR` no está (Railway y
+  DigitalOcean inyectan `PORT`).
+- **Migraciones embebidas** (`db/db.go` + `internal/migrate`): la API las
+  aplica al arrancar, con advisory lock. Si una falla, el proceso no
+  levanta y el deploy anterior sigue vivo. `api migrate` las aplica sin
+  levantar el server. `make migrate` y los tests usan el mismo código
+  (ya no `psql`). Verificado: base vacía → esquema idéntico al de tests;
+  segunda corrida no aplica nada.
+- **GitHub Actions** (`.github/workflows/ci.yml`): `go vet` + `go test`
+  contra Postgres 16, typecheck + build de la PWA y build de la imagen en
+  cada push/PR. En `main`, si todo pasa, `railway up` al servicio de
+  staging (`railway.toml`: Dockerfile, healthcheck `/healthz`).
+- **Portabilidad:** la idea es mudarse a DigitalOcean más adelante; para
+  eso alcanza con cambiar el job `deploy`. Nada del código depende de
+  Railway.
+- **Pendiente del dueño:** crear el proyecto en Railway (servicio +
+  Postgres), cargar las variables de entorno, y en GitHub el secret
+  `RAILWAY_TOKEN` (environment `staging`) y la variable de repositorio
+  `RAILWAY_SERVICE`. Mientras esa variable no exista, el job `deploy` se
+  saltea y el CI queda en verde.
 
 ## Categorías de catálogo (2026-09-21)
 
@@ -194,8 +218,8 @@ Errores siempre `{ "error": "mensaje en español" }`.
 2. Decisión de diseño: `ink-faint` #7A7A78 no cumple AA 4.5:1 para texto chico
    (4.28 / 4.00 / 3.60 sobre los tres fondos). Propuesta: `#8C8C8A`.
 3. Admin real: hoy el rol se asigna por SQL.
-4. Deploy: `make web-build && go build ./cmd/api`, Postgres 16, `WEB_DIST`,
-   `FRONTEND_URL` y `PUBLIC_BASE_URL` al mismo dominio. Sin remoto git aún.
+4. Deploy: el pipeline está listo (ver "CI/CD y deploy"); falta crear el
+   proyecto en Railway y cargar variables y token.
 
 ## Limitaciones conocidas
 

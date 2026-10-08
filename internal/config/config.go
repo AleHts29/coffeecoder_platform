@@ -90,7 +90,7 @@ type MercadoPagoConfig struct {
 func Load() (Config, error) {
 	cfg := Config{
 		Env:           getenv("APP_ENV", "development"),
-		HTTPAddr:      getenv("HTTP_ADDR", ":8080"),
+		HTTPAddr:      httpAddr(),
 		DatabaseURL:   os.Getenv("DATABASE_URL"),
 		PublicBaseURL: getenv("PUBLIC_BASE_URL", "http://localhost:8080"),
 		FrontendURL:   getenv("FRONTEND_URL", "http://localhost:5173"),
@@ -183,6 +183,18 @@ func Load() (Config, error) {
 		return cfg, fmt.Errorf("JWT_SECRET es requerida fuera de development")
 	}
 	return cfg, nil
+}
+
+// httpAddr: HTTP_ADDR manda; si no está, PORT (lo inyectan Railway y
+// DigitalOcean App Platform); si no, :8080.
+func httpAddr() string {
+	if v := os.Getenv("HTTP_ADDR"); v != "" {
+		return v
+	}
+	if p := os.Getenv("PORT"); p != "" {
+		return ":" + p
+	}
+	return ":8080"
 }
 
 func getenv(key, fallback string) string {

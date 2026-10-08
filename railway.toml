@@ -1,0 +1,11 @@
+# Config de Railway como código. El deploy lo dispara GitHub Actions
+# (.github/workflows/ci.yml) después de que pasa el CI.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/healthz"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

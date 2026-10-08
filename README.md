@@ -29,7 +29,7 @@ internal/
   billing/          P6 · órdenes, Mercado Pago, webhooks
   store/            generado por sqlc (no editar a mano)
 db/
-  migrations/       SQL plano, aplicado en orden por make migrate
+  migrations/       SQL plano, embebido en el binario y aplicado en orden al arrancar
   queries/          queries fuente de sqlc
 web/                React PWA (Vite)
   src/router.tsx    rutas + loaders (precargan en TanStack Query)
@@ -45,7 +45,7 @@ web/                React PWA (Vite)
 cp .env.example .env   # ajustá HTTP_ADDR si el :8080 está ocupado
 make tools      # instala sqlc en ./bin
 make db-up      # Postgres 16 en Docker (puerto 5432)
-make migrate    # aplica db/migrations/*.sql (solo sobre base vacía)
+make migrate    # aplica las migraciones pendientes (también lo hace la API al arrancar)
 make sqlc       # regenera internal/store
 make seed       # contenido de desarrollo (idempotente)
 make run        # levanta la API (lee .env)
@@ -121,7 +121,9 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
   y `daily_activity` (migración 0002: una fila por usuario y día; cada
   heartbeat suma el avance real acotado a 30 s, así un seek no infla las
   horas). Nunca agrega sobre `lesson_progress`.
-- `make migrate` registra lo aplicado en `schema_migrations` y es idempotente.
+- Las migraciones las aplica `internal/migrate` (la API al arrancar, `api migrate`,
+  `make migrate` y los tests): registro en `schema_migrations`, idempotente y con
+  advisory lock para que dos instancias no migren a la vez.
 
 ## Pagos y emails (P6)
 
@@ -172,8 +174,7 @@ que pide `go.mod` aunque el `go` del PATH sea viejo, y
   Assets con hash → `Cache-Control: immutable`; cualquier otra ruta → `index.html`
   con `<title>`, `description` y Open Graph inyectados por curso/carrera
   (`internal/server/web.go`), así los crawlers ven metadatos reales sin SSR.
-  Despliegue: `make web-build && go build ./cmd/api` y `WEB_DIST`, `FRONTEND_URL`
-  y `PUBLIC_BASE_URL` apuntando al mismo dominio.
+  Despliegue: ver "Deploy" más abajo.
 - **Code splitting por ruta**: catálogo en el bundle principal (la puerta);
   player (hls.js), admin (tus) y cada ruta de alumno en chunks propios.
 - **PWA**: `vite-plugin-pwa` con service worker `autoUpdate` que precachea el
@@ -210,3 +211,20 @@ corre cada test de integración dentro de una transacción que se revierte
 
 P1 fundaciones ✓ → P2 auth ✓ → P3 catálogo ✓ → P4 video ✓ → P5 progreso ✓ → P6 pagos ✓ → P7 admin ✓ → P8 pulido ✓
 P5 progreso → P6 pagos → P7 admin → P8 pulido UX.
+
+## Deploy (CI/CD)
+
+- **Imagen**: `Dockerfile` multi-stage (PWA con Node 24, binario Go estático,
+  runtime distroless sin root, ~16 MB). Lleva `APP_ENV=production` y
+  `WEB_DIST=/app/web`; escucha en `PORT` si `HTTP_ADDR` no está definida.
+- **Migraciones al arrancar**: si una falla, el proceso no levanta, el
+  healthcheck (`/healthz`) no pasa y el deploy anterior sigue atendiendo.
+- **GitHub Actions** (`.github/workflows/ci.yml`): en cada push y PR corre
+  `go vet` + `go test` contra Postgres 16, typecheck + build de la PWA y build
+  de la imagen. En `main`, si todo pasa, el job `deploy` hace `railway up`
+  (config en `railway.toml`). Necesita el secret `RAILWAY_TOKEN` (token de
+  proyecto) en el environment `staging` de GitHub y la variable de repositorio
+  `RAILWAY_SERVICE`; sin esa variable el deploy se saltea.
+- Para mudarse de proveedor alcanza con reemplazar el job `deploy`.
+- Variables de entorno en el host: ver `.env.example`. `PUBLIC_BASE_URL` y
+  `FRONTEND_URL` van al mismo dominio (cookie de refresh y OG).

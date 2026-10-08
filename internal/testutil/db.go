@@ -5,16 +5,18 @@ package testutil
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
 	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/alejandro/coffeecoder/db"
+	"github.com/alejandro/coffeecoder/internal/migrate"
 	"github.com/alejandro/coffeecoder/internal/store"
 )
 
@@ -56,30 +58,12 @@ func prepare(url string) error {
 		return err
 	}
 
-	// Migraciones pendientes según schema_migrations (mismo registro que
-	// `make migrate`); el seed es idempotente y se aplica siempre.
-	if _, err := pool.Exec(ctx, "CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"); err != nil {
+	// Mismas migraciones que aplica el binario al arrancar; el seed es
+	// idempotente y se aplica siempre.
+	if err := migrate.Up(ctx, pool, db.Migrations, "migrations", slog.Default()); err != nil {
 		return err
 	}
 	root := repoRoot()
-	files, _ := filepath.Glob(filepath.Join(root, "db", "migrations", "*.sql"))
-	sort.Strings(files)
-	for _, f := range files {
-		name := filepath.Base(f)
-		var applied bool
-		if err := pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1)", name).Scan(&applied); err != nil {
-			return err
-		}
-		if applied {
-			continue
-		}
-		if err := execFile(ctx, f); err != nil {
-			return err
-		}
-		if _, err := pool.Exec(ctx, "INSERT INTO schema_migrations (name) VALUES ($1)", name); err != nil {
-			return err
-		}
-	}
 	for _, f := range []string{"dev.sql", "articles.sql", "curso-produccion-musical.sql"} {
 		if err := execFile(ctx, filepath.Join(root, "db", "seed", f)); err != nil {
 			return err

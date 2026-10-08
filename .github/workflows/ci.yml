@@ -1,0 +1,81 @@
+# CI en cada push y PR; en main, si todo pasa, deploy a Railway (staging).
+# Para mudarse de proveedor alcanza con reemplazar el job `deploy`: la
+# imagen es el Dockerfile y no depende de Railway.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: coffee
+          POSTGRES_PASSWORD: coffee
+          POSTGRES_DB: coffeecoder_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U coffee -d coffeecoder_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://coffee:coffee@localhost:5432/coffeecoder_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test ./...
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build # typecheck + build
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [go, web, image]
+    # Se saltea hasta que exista la variable de repositorio RAILWAY_SERVICE.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.RAILWAY_SERVICE != ''
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install -g @railway/cli
+      # --ci sigue los logs del build y falla el job si el deploy falla.
+      - run: railway up --ci --service "${{ vars.RAILWAY_SERVICE }}"

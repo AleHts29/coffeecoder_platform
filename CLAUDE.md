@@ -19,7 +19,9 @@ Resumen de lo que hay hoy:
   que sirve las dos cosas en producción (`WEB_DIST`).
 - `db/migrations/0001_init.sql` está validado contra PostgreSQL 16 real y
   es canónico: no lo reescribas, extendelo con migraciones nuevas.
-  `make migrate` es idempotente vía `schema_migrations`.
+  Las migraciones van embebidas en el binario (`internal/migrate`) y se
+  aplican al arrancar; `make migrate` usa lo mismo y es idempotente.
+- Deploy: `Dockerfile` + GitHub Actions → Railway (ver README, "Deploy").
 - Lecciones de **video** y de **lectura** (Markdown + demos interactivas,
   ver `docs/DEMOS.md`). Categorías de catálogo. Dos cursos sembrados:
   "Go desde cero" y "Producción Musical con Ableton" (este último en
