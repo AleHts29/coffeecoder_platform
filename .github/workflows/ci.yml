@@ -78,5 +78,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm install -g @railway/cli
-      # --ci sigue los logs del build y falla el job si el deploy falla.
-      - run: railway up --ci --service "${{ vars.RAILWAY_SERVICE }}"
+      - name: railway up
+        env:
+          RAILWAY_SERVICE: ${{ vars.RAILWAY_SERVICE }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error title=railway up::RAILWAY_TOKEN vacío: falta el secret en el environment staging o en el repo"
+            exit 1
+          fi
+          # --ci sigue los logs del build y falla el job si el deploy falla.
+          set -o pipefail
+          railway up --ci --service "$RAILWAY_SERVICE" 2>&1 | tee railway.log
+      # Los logs del job piden login; las anotaciones no. Así el error de
+      # Railway se ve desde la API pública del run.
+      - name: error de Railway como anotación
+        if: failure() && hashFiles('railway.log') != ''
+        run: |
+          msg=$(tail -n 20 railway.log | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=railway up::${msg}"
